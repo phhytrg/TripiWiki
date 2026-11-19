@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Laos Railway &amp; Train Guide — Laos Wiki{% endblock %}
+
+{% block content %}
+<article class="container place-detail">
+  <div class="breadcrumb">
+    <a href="/">Home</a> / <span>Railway &amp; Transport</span>
+  </div>
+
+  <header class="place-header">
+    <div class="card-meta">
+      <span class="region-pill">Nationwide Transport</span>
+      <span class="category-label">Railway Guide</span>
+    </div>
+    <h1>Laos–China Railway (LCR) &amp; Cross-Border Trains</h1>
+    <p class="place-summary">
+      The fastest, most comfortable way to travel between Vientiane, Vang Vieng, Luang Prabang,
+      and the Chinese border—plus the overnight rail link to Bangkok via Khamsavath.
+    </p>
+
+    <div class="place-hero-wrap">
+      <img src="/static/images/lcr-railway.jpg" alt="Laos-China Railway crossing northern Laos mountains" class="place-hero-img" />
+    </div>
+  </header>
+
+  <section class="map-section">
+    <h2>Interactive Railway &amp; Station Map</h2>
+    <div id="railway-map"></div>
+  </section>
+
+  <div class="place-layout">
+    <div class="prose">
+      <h2>1. Laos–China Railway (LCR)</h2>
+      <p>
+        Operating at up to <strong>160 km/h</strong>, the LCR cuts overland travel times in northern Laos
+        from 8+ hours on mountain buses down to 1–2 hours.
+      </p>
+
+      <div class="table-wrap">
+      <table class="wiki-table">
+        <thead>
+          <tr>
+            <th>Route</th>
+            <th>EMU High-Speed</th>
+            <th>Ordinary Train</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Vientiane ↔ Vang Vieng</td>
+            <td>~50 min – 1 hr</td>
+            <td>~1 hr 20 min</td>
+            <td>Multiple daily departures</td>
+          </tr>
+          <tr>
+            <td>Vang Vieng ↔ Luang Prabang</td>
+            <td>~50 min</td>
+            <td>~1 hr 15 min</td>
+            <td>Scenic karst tunnels &amp; bridges</td>
+          </tr>
+          <tr>
+            <td>Vientiane ↔ Luang Prabang</td>
+            <td>~1 hr 50 min – 2 hr</td>
+            <td>~2 hr 40 min</td>
+            <td>Book 2–3 days ahead in high season</td>
+          </tr>
+          <tr>
+            <td>Vientiane ↔ Boten (Border)</td>
+            <td>~3 hr 30 min</td>
+            <td>~5 hr</td>
+            <td>International D887/D888 continues to Kunming</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2>2. Vientiane ↔ Bangkok (Khamsavath Station)</h2>
+      <p>
+        For travelers arriving from or heading to Thailand, the <strong>Thai–Laos metre-gauge railway</strong>
+        connects <strong>Vientiane (Khamsavath Station)</strong> across the Mekong Friendship Bridge to
+        <strong>Nong Khai</strong> and overnight sleeper trains to <strong>Bangkok (Krung Thep Aphiwat)</strong>.
+      </p>
+
+      <h2>3. Station Transfers &amp; Practical Tips</h2>
+      <ul>
+        <li><strong>Stations are outside town:</strong> Vientiane LCR (14 km), Luang Prabang (12 km), and Vang Vieng (4 km) all require a 10–30 minute tuk-tuk, shared minivan, or LOCA taxi.</li>
+        <li><strong>Booking tickets:</strong> Use the official <em>LCR Ticket</em> app (opens 3 days in advance, requires passport details), buy at the station, or book through local guesthouses / 12Go.</li>
+        <li><strong>Airport-style security:</strong> Arrive <strong>45–60 minutes</strong> early. No aerosols/sprays, pocket knives, or large power banks (&gt;20,000 mAh) in carry-on bags.</li>
+      </ul>
+    </div>
+
+    <aside class="place-sidebar">
+      <div class="tags-box">
+        <h4>Key Stations</h4>
+        <ul>
+          <li><strong>Vientiane LCR</strong> — Capital hub</li>
+          <li><strong>Khamsavath</strong> — Bangkok sleeper link</li>
+          <li><strong>Vang Vieng</strong> — Karst &amp; lagoons</li>
+          <li><strong>Luang Prabang</strong> — UNESCO Old Town</li>
+          <li><strong>Muang Xay</strong> — Bus link to Nong Khiaw</li>
+          <li><strong>Nateuy</strong> — Bus link to Luang Namtha</li>
+          <li><strong>Boten</strong> — China border / Kunming</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (async function initRailwayMap() {
+    const el = document.getElementById("railway-map");
+    if (!el) return;
+
+    const map = L.map("railway-map").setView([19.4, 102.3], 7);
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      {
+        attribution: "Tiles &copy; Esri",
+        maxZoom: 19,
+      }
+    ).addTo(map);
+
+    const res = await fetch("/api/railway.geojson");
+    const data = await res.json();
+
+    const layer = L.geoJSON(data, {
+      style: (feature) => ({
+        color: feature.properties?.color || "#2563eb",
+        weight: 4,
+        opacity: 0.9,
+      }),
+      pointToLayer: (feature, latlng) =>
+        L.circleMarker(latlng, {
+          radius: 7,
+          fillColor: "#2563eb",
+          color: "#ffffff",
+          weight: 2,
+          fillOpacity: 1,
+        }),
+      onEachFeature: (feature, layerItem) => {
+        const p = feature.properties || {};
+        if (p.kind === "station") {
+          layerItem.bindPopup(
+            `<strong>🚆 ${p.name}</strong><br><small>${p.line}</small><br>${p.transfer}`
+          );
+        } else if (p.name) {
+          layerItem.bindPopup(`<strong>${p.name}</strong><br>${p.description || ""}`);
+        }
+      },
+    }).addTo(map);
+
+    if (data.features?.length) {
+      map.fitBounds(layer.getBounds(), { padding: [30, 30] });
+    }
+  })();
+</script>
+{% endblock %}

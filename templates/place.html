@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}{{ place.meta.title }} — Laos Wiki{% endblock %}
+
+{% block content %}
+<article class="container place-detail">
+  <div class="breadcrumb">
+    <a href="/">Home</a> /
+    <a href="/?region={{ place.meta.region }}">{{ place.meta.region_name }}</a> /
+    <span>{{ place.meta.title }}</span>
+  </div>
+
+  <header class="place-header">
+    <div class="card-meta">
+      <span class="region-pill">{{ place.meta.region_name }}</span>
+      <span class="category-label">{{ place.meta.category }}</span>
+    </div>
+    <h1>{{ place.meta.title }}</h1>
+    <p class="place-summary">{{ place.meta.summary }}</p>
+
+    {% let gallery = place.meta.gallery() %}
+    {% if !gallery.is_empty() %}
+    <div class="place-hero-wrap card-carousel">
+      {% for img in gallery.iter() %}
+      <img
+        src="{{ img }}"
+        alt="{{ place.meta.title }} ({{ loop.index }})"
+        class="place-hero-img carousel-slide {% if loop.first %}active{% endif %}"
+      />
+      {% endfor %}
+      {% if gallery.len() > 1 %}
+      <div class="carousel-dots" role="tablist" aria-label="Switch photo">
+        {% for _ in gallery.iter() %}
+        <button
+          type="button"
+          class="carousel-dot {% if loop.first %}active{% endif %}"
+          data-index="{{ loop.index0 }}"
+          aria-label="Photo {{ loop.index }}"
+          aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+        ></button>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="quick-facts">
+      <div><strong>Duration:</strong> {{ place.meta.duration }}</div>
+      <div><strong>Best Time:</strong> {{ place.meta.best_time }}</div>
+      <div><strong>Coordinates:</strong> {{ place.meta.lat }}, {{ place.meta.lng }}</div>
+    </div>
+  </header>
+
+  <div class="place-layout">
+    <div class="prose">
+      {{ place.html_body|safe }}
+    </div>
+
+    <aside class="place-sidebar">
+      <div id="mini-map"
+           data-lat="{{ place.meta.lat }}"
+           data-lng="{{ place.meta.lng }}"
+           data-title="{{ place.meta.title }}">
+      </div>
+
+      <div class="weather-box">
+        <h4>5-Day Weather Forecast</h4>
+        <div id="place-weather"
+             data-lat="{{ place.meta.lat }}"
+             data-lng="{{ place.meta.lng }}">
+          <span class="weather-loading">Loading live forecast...</span>
+        </div>
+      </div>
+
+      {% if !place.meta.tags.is_empty() %}
+      <div class="tags-box">
+        <h4>Tags</h4>
+        <div class="tags-list">
+          {% for tag in place.meta.tags %}
+          <a href="/?q={{ tag }}" class="tag">{{ tag }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if !related.is_empty() %}
+      <div class="related-box">
+        <h4>More in {{ place.meta.region_name }}</h4>
+        <ul>
+          {% for r in related %}
+          <li><a href="/places/{{ r.meta.slug }}">{{ r.meta.title }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const el = document.getElementById("mini-map");
+  if (el) {
+    const lat = parseFloat(el.dataset.lat);
+    const lng = parseFloat(el.dataset.lng);
+    const map = L.map("mini-map").setView([lat, lng], 12);
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      {
+        attribution: "Tiles &copy; Esri",
+        maxZoom: 19,
+      }
+    ).addTo(map);
+    L.marker([lat, lng]).addTo(map).bindPopup(el.dataset.title).openPopup();
+  }
+</script>
+<script src="/static/weather.js"></script>
+{% endblock %}

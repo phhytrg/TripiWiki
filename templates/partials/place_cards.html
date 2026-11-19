@@ -1,0 +1,52 @@
+{% if places.is_empty() %}
+<div class="empty-state">
+  <p>No destinations matched your filter. Try clearing the search or picking another region.</p>
+</div>
+{% else %}
+<div class="cards-grid">
+  {% for place in places %}
+  {% let gallery = place.meta.gallery() %}
+  <article class="place-card" data-slug="{{ place.meta.slug }}" data-lat="{{ place.meta.lat }}" data-lng="{{ place.meta.lng }}">
+    {% if !gallery.is_empty() %}
+    <div class="card-carousel">
+      <a href="/places/{{ place.meta.slug }}" class="card-image-link">
+        {% for img in gallery.iter() %}
+        <img
+          src="{{ img }}"
+          alt="{{ place.meta.title }} ({{ loop.index }})"
+          class="card-image carousel-slide {% if loop.first %}active{% endif %}"
+          loading="lazy"
+        />
+        {% endfor %}
+      </a>
+      {% if gallery.len() > 1 %}
+      <div class="carousel-dots" role="tablist" aria-label="Switch image">
+        {% for _ in gallery.iter() %}
+        <button
+          type="button"
+          class="carousel-dot {% if loop.first %}active{% endif %}"
+          data-index="{{ loop.index0 }}"
+          aria-label="Image {{ loop.index }}"
+          aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+        ></button>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    <div class="card-body">
+      <div class="card-meta">
+        <span class="region-pill">{{ place.meta.region_name }}</span>
+        <span class="category-label">{{ place.meta.category }}</span>
+      </div>
+      <h3><a href="/places/{{ place.meta.slug }}">{{ place.meta.title }}</a></h3>
+      <p class="card-summary">{{ place.meta.summary }}</p>
+      <div class="card-footer">
+        <span>⏱ {{ place.meta.duration }}</span>
+        <span>🌤 {{ place.meta.best_time }}</span>
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}

@@ -1,0 +1,112 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "line",
+        "name": "Laos–China Railway (LCR)",
+        "description": "Standard-gauge high-speed & passenger line: Boten ↔ Vientiane (414 km)",
+        "color": "#2563eb"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [101.6710, 21.1750],
+          [101.6210, 20.9960],
+          [101.9810, 20.6920],
+          [102.1850, 19.8690],
+          [102.4590, 18.9380],
+          [102.6620, 18.0650]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "line",
+        "name": "Laos–Thailand Railway (Khamsavath)",
+        "description": "Cross-border metre-gauge line: Vientiane Khamsavath ↔ Nong Khai / Bangkok",
+        "color": "#7c3aed"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [102.6430, 17.9250],
+          [102.7120, 17.8820],
+          [102.7420, 17.8680]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "station",
+        "name": "Vientiane LCR Station",
+        "line": "Laos–China Railway",
+        "transfer": "14 km NE of city center (~30 min by green shuttle bus or LOCA taxi)."
+      },
+      "geometry": { "type": "Point", "coordinates": [102.6620, 18.0650] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "station",
+        "name": "Vang Vieng Station",
+        "line": "Laos–China Railway",
+        "transfer": "4 km east of town (~10 min by tuk-tuk or hotel pickup)."
+      },
+      "geometry": { "type": "Point", "coordinates": [102.4590, 18.9380] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "station",
+        "name": "Luang Prabang Station",
+        "line": "Laos–China Railway",
+        "transfer": "12 km east of Old Town (~25 min by shared minivan, ~40,000–60,000 LAK)."
+      },
+      "geometry": { "type": "Point", "coordinates": [102.1850, 19.8690] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "station",
+        "name": "Muang Xay (Oudomxay) Station",
+        "line": "Laos–China Railway",
+        "transfer": "Gateway to northern Oudomxay and buses toward Nong Khiaw / Phongsaly."
+      },
+      "geometry": { "type": "Point", "coordinates": [101.9810, 20.6920] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "station",
+        "name": "Nateuy (Luang Namtha) Station",
+        "line": "Laos–China Railway",
+        "transfer": "35 km east of Luang Namtha town (~45 min by minivan)."
+      },
+      "geometry": { "type": "Point", "coordinates": [101.6210, 20.9960] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "station",
+        "name": "Boten Border Station",
+        "line": "Laos–China Railway",
+        "transfer": "Laos–China border crossing; international EMU trains continue to Kunming."
+      },
+      "geometry": { "type": "Point", "coordinates": [101.6710, 21.1750] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "station",
+        "name": "Khamsavath Station (Thai Border Link)",
+        "line": "Laos–Thailand Railway",
+        "transfer": "7 km east of Vientiane center; overnight sleeper trains to/from Bangkok."
+      },
+      "geometry": { "type": "Point", "coordinates": [102.6430, 17.9250] }
+    }
+  ]
+}

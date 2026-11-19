@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <h1>Explore Laos, Beyond the Tourist Track</h1>
+    <p class="hero-sub">
+      A local-first travel wiki &amp; route map covering Vientiane, Luang Prabang, Vang Vieng,
+      the Thakhek Loop, and the Bolaven Plateau.
+    </p>
+  </div>
+</section>
+
+<section class="container weather-section">
+  <div class="weather-strip-header">
+    <span class="weather-strip-title">Live Laos Weather (North → South)</span>
+    <span class="weather-strip-source">via Open-Meteo</span>
+  </div>
+  <div id="laos-weather-strip" class="weather-strip">
+    <span class="weather-loading">Loading live forecast...</span>
+  </div>
+</section>
+
+<section class="container map-section">
+  <div id="laos-map" data-active-region="{{ active_region }}"></div>
+</section>
+
+<section class="container explorer-section">
+  <div class="controls-bar">
+    <div class="region-pills">
+      <a href="/?region=all"
+         class="pill {% if active_region == "all" %}active{% endif %}">
+        All ({{ total_places }})
+      </a>
+      {% for r in regions %}
+      <a href="/?region={{ r.slug }}"
+         class="pill {% if active_region == r.slug %}active{% endif %}">
+        {{ r.name }} ({{ r.count }})
+      </a>
+      {% endfor %}
+    </div>
+
+    <form class="search-form" action="/" method="get">
+      <input type="hidden" name="region" value="{{ active_region }}" />
+      <input
+        type="search"
+        name="q"
+        value="{{ query }}"
+        placeholder="Search waterfalls, temples, loops..."
+        hx-get="/"
+        hx-trigger="input changed delay:200ms, search"
+        hx-target="#place-results"
+        hx-include="[name='region']"
+      />
+    </form>
+  </div>
+
+  <div id="place-results">
+    {% include "partials/place_cards.html" %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/map.js"></script>
+<script src="/static/weather.js"></script>
+{% endblock %}

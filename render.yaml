@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: laos-wiki
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /
