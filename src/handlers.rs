@@ -10,9 +10,11 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use crate::content::{Place, RegionInfo, WikiStore};
+use crate::gdrive::GDriveClient;
 
 pub struct AppState {
     pub store: WikiStore,
+    pub gdrive: GDriveClient,
 }
 
 pub struct HtmlTemplate<T>(pub T);

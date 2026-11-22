@@ -1,13 +1,18 @@
 mod content;
+mod gdrive;
 mod handlers;
 
-use axum::{routing::get, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use std::path::Path;
 use std::sync::Arc;
 use tower_http::{compression::CompressionLayer, services::ServeDir};
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::content::WikiStore;
+use crate::gdrive::{gdrive_id_handler, image_handler, refresh_media_handler, GDriveClient};
 use crate::handlers::{
     index_handler, place_detail_handler, places_geojson_handler, railway_geojson_handler,
     railway_handler, routes_geojson_handler, AppState,
@@ -25,7 +30,16 @@ async fn main() {
         store.regions.len()
     );
 
-    let state = Arc::new(AppState { store });
+    let gdrive = GDriveClient::from_env();
+    if gdrive.is_folder_enabled() {
+        if let Err(err) = gdrive.refresh_index().await {
+            warn!("Initial Google Drive index failed (will retry on demand / fallback to local): {err}");
+        }
+    } else {
+        info!("Google Drive folder not configured; serving images from local static/images/");
+    }
+
+    let state = Arc::new(AppState { store, gdrive });
 
     let app = Router::new()
         .route("/", get(index_handler))
@@ -34,6 +48,9 @@ async fn main() {
         .route("/api/places.geojson", get(places_geojson_handler))
         .route("/api/routes.geojson", get(routes_geojson_handler))
         .route("/api/railway.geojson", get(railway_geojson_handler))
+        .route("/api/media/refresh", post(refresh_media_handler))
+        .route("/media/gdrive/{file_id}", get(gdrive_id_handler))
+        .route("/static/images/{filename}", get(image_handler))
         .nest_service("/static", ServeDir::new("static"))
         .layer(CompressionLayer::new())
         .with_state(state);
