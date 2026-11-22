@@ -12,7 +12,9 @@ use tower_http::{compression::CompressionLayer, services::ServeDir};
 use tracing::{info, warn};
 
 use crate::content::WikiStore;
-use crate::gdrive::{gdrive_id_handler, image_handler, refresh_media_handler, GDriveClient};
+use crate::gdrive::{
+    gdrive_id_handler, image_handler, media_status_handler, refresh_media_handler, GDriveClient,
+};
 use crate::handlers::{
     index_handler, place_detail_handler, places_geojson_handler, railway_geojson_handler,
     railway_handler, routes_geojson_handler, AppState,
@@ -20,6 +22,7 @@ use crate::handlers::{
 
 #[tokio::main]
 async fn main() {
+    load_dotenv();
     tracing_subscriber::fmt::init();
 
     let store = WikiStore::load_from_dir(Path::new("content"))
@@ -48,9 +51,10 @@ async fn main() {
         .route("/api/places.geojson", get(places_geojson_handler))
         .route("/api/routes.geojson", get(routes_geojson_handler))
         .route("/api/railway.geojson", get(railway_geojson_handler))
+        .route("/api/media/status", get(media_status_handler))
         .route("/api/media/refresh", post(refresh_media_handler))
         .route("/media/gdrive/{file_id}", get(gdrive_id_handler))
-        .route("/static/images/{filename}", get(image_handler))
+        .route("/static/images/{*path}", get(image_handler))
         .nest_service("/static", ServeDir::new("static"))
         .layer(CompressionLayer::new())
         .with_state(state);
@@ -62,4 +66,24 @@ async fn main() {
         .unwrap_or_else(|e| panic!("Failed to bind {addr}: {e}"));
     info!("TripiWiki running at http://{addr}");
     axum::serve(listener, app).await.expect("Server error");
+}
+
+/// Lightweight `.env` loader for local development (existing env vars take precedence).
+fn load_dotenv() {
+    let Ok(contents) = std::fs::read_to_string(".env") else {
+        return;
+    };
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some((key, val)) = trimmed.split_once('=') {
+            let key = key.trim();
+            let val = val.trim().trim_matches('"').trim_matches('\'');
+            if !key.is_empty() && !val.is_empty() && std::env::var_os(key).is_none() {
+                std::env::set_var(key, val);
+            }
+        }
+    }
 }

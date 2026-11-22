@@ -4,4 +4,10 @@ services:
     runtime: docker
     plan: free
     region: singapore
+    autoDeploy: false
     healthCheckPath: /
+    envVars:
+      - key: GDRIVE_FOLDER_ID
+        sync: false
+      - key: GDRIVE_API_KEY
+        sync: false
