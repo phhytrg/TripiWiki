@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: laos-wiki
+    name: tripiwiki
     runtime: docker
     plan: free
     region: singapore

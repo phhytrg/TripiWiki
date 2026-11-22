@@ -12,11 +12,11 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 WORKDIR /app
 
-COPY --from=builder /app/target/release/laos-wiki /app/laos-wiki
+COPY --from=builder /app/target/release/tripiwiki /app/tripiwiki
 COPY content ./content
 COPY static ./static
 
 ENV PORT=3000
 EXPOSE 3000
 
-CMD ["/app/laos-wiki"]
+CMD ["/app/tripiwiki"]

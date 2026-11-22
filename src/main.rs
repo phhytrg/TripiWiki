@@ -43,6 +43,6 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .unwrap_or_else(|e| panic!("Failed to bind {addr}: {e}"));
-    info!("Laos Wiki running at http://{addr}");
+    info!("TripiWiki running at http://{addr}");
     axum::serve(listener, app).await.expect("Server error");
 }
