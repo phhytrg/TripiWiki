@@ -1,6 +1,7 @@
 mod content;
 mod gdrive;
 mod handlers;
+mod weather;
 
 use axum::{
     routing::{get, post},
@@ -17,7 +18,11 @@ use crate::gdrive::{
 };
 use crate::handlers::{
     index_handler, place_detail_handler, places_geojson_handler, railway_geojson_handler,
-    railway_handler, routes_geojson_handler, AppState,
+    railway_handler, AppState,
+};
+use crate::weather::{
+    climate_weather_handler, hubs_weather_handler, place_weather_handler, route_generate_handler,
+    WeatherClient,
 };
 
 #[tokio::main]
@@ -42,15 +47,23 @@ async fn main() {
         info!("Google Drive folder not configured; serving images from local static/images/");
     }
 
-    let state = Arc::new(AppState { store, gdrive });
+    let weather = WeatherClient::new();
+    let state = Arc::new(AppState {
+        store,
+        gdrive,
+        weather,
+    });
 
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/railway", get(railway_handler))
         .route("/places/{slug}", get(place_detail_handler))
         .route("/api/places.geojson", get(places_geojson_handler))
-        .route("/api/routes.geojson", get(routes_geojson_handler))
         .route("/api/railway.geojson", get(railway_geojson_handler))
+        .route("/api/route/generate", get(route_generate_handler))
+        .route("/api/weather/hubs", get(hubs_weather_handler))
+        .route("/api/weather/place", get(place_weather_handler))
+        .route("/api/weather/climate", get(climate_weather_handler))
         .route("/api/media/status", get(media_status_handler))
         .route("/api/media/refresh", post(refresh_media_handler))
         .route("/media/gdrive/{file_id}", get(gdrive_id_handler))

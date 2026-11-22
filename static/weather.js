@@ -30,30 +30,28 @@
     return d.toLocaleDateString("en-US", { weekday: "short" });
   }
 
-  // 1. Home page: batched live weather strip for major Laos hubs (North -> South)
+  async function fetchJson(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  // 1. Home page: batched weather forecast strip for hubs (North -> South)
   const stripEl = document.getElementById("laos-weather-strip");
   if (stripEl) {
     const hubs = [
-      { name: "Nong Khiaw", region: "nong-khiaw", lat: 20.5718, lng: 102.6134 },
-      { name: "Luang Prabang", region: "luang-prabang", lat: 19.8895, lng: 102.1347 },
-      { name: "Vang Vieng", region: "vang-vieng", lat: 18.9233, lng: 102.4114 },
-      { name: "Vientiane", region: "vientiane", lat: 17.9757, lng: 102.6365 },
-      { name: "Thakhek", region: "khammouane", lat: 17.4089, lng: 104.8306 },
-      { name: "Pakse / Bolaven", region: "champasak", lat: 15.1823, lng: 106.1268 },
+      { name: "Nong Khiaw", region: "nong-khiaw" },
+      { name: "Luang Prabang", region: "luang-prabang" },
+      { name: "Vang Vieng", region: "vang-vieng" },
+      { name: "Vientiane", region: "vientiane" },
+      { name: "Thakhek", region: "khammouane" },
+      { name: "Pakse / Bolaven", region: "champasak" },
     ];
 
-    const lats = hubs.map((h) => h.lat).join(",");
-    const lngs = hubs.map((h) => h.lng).join(",");
-    const url =
-      `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}` +
-      `&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
-      `&timezone=Asia%2FBangkok&forecast_days=1`;
-
-    fetch(url)
-      .then((res) => res.json())
+    fetchJson("/api/weather/hubs")
       .then((data) => {
         const list = Array.isArray(data) ? data : [data];
-        stripEl.innerHTML = hubs
+        const html = hubs
           .map((hub, idx) => {
             const item = list[idx];
             if (!item || !item.current) return "";
@@ -72,8 +70,12 @@
             `;
           })
           .join("");
+
+        if (!html.trim()) throw new Error("Empty weather payload");
+        stripEl.innerHTML = html;
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Weather hubs error:", err);
         stripEl.innerHTML = `<span class="weather-error">Live weather unavailable right now.</span>`;
       });
   }
@@ -83,14 +85,9 @@
   if (placeEl) {
     const lat = placeEl.dataset.lat;
     const lng = placeEl.dataset.lng;
-    const url =
-      `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lng)}` +
-      `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m` +
-      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
-      `&timezone=Asia%2FBangkok&forecast_days=5`;
+    const url = `/api/weather/place?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`;
 
-    fetch(url)
-      .then((res) => res.json())
+    fetchJson(url)
       .then((data) => {
         if (!data.current || !data.daily) {
           throw new Error("Incomplete weather response");
@@ -134,8 +131,114 @@
           <div class="forecast-list">${rows}</div>
         `;
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Place weather error:", err);
         placeEl.innerHTML = `<p class="weather-error">Could not load live forecast.</p>`;
+      });
+  }
+
+  // 3. Destination detail page: Full-Year Climate Chart (Jan–Dec Temperature + Precipitation)
+  const climateEl = document.getElementById("place-climate-chart");
+  if (climateEl) {
+    const lat = climateEl.dataset.lat;
+    const lng = climateEl.dataset.lng;
+    const url = `/api/weather/climate?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`;
+
+    fetchJson(url)
+      .then((data) => {
+        const months = data.months || [];
+        if (months.length !== 12) throw new Error("Expected 12 months");
+
+        const W = 640;
+        const H = 240;
+        const padL = 38;
+        const padR = 44;
+        const padT = 16;
+        const padB = 30;
+        const plotW = W - padL - padR;
+        const plotH = H - padT - padB;
+
+        const maxRain = Math.max(100, ...months.map((m) => m.rain_mm));
+        const maxTemp = Math.ceil(Math.max(35, ...months.map((m) => m.avg_high)) / 5) * 5;
+        const minTemp = Math.floor(Math.min(10, ...months.map((m) => m.avg_low)) / 5) * 5;
+
+        const stepX = plotW / 12;
+        const xFor = (i) => padL + stepX * i + stepX / 2;
+        const yTemp = (t) => padT + plotH - ((t - minTemp) / (maxTemp - minTemp)) * plotH;
+        const yRain = (r) => padT + plotH - (r / maxRain) * plotH;
+
+        // Horizontal grid lines (temperature ticks)
+        const gridLines = [];
+        for (let t = minTemp; t <= maxTemp; t += 10) {
+          const y = yTemp(t);
+          gridLines.push(
+            `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#e7e5e4" stroke-dasharray="3 3" />`,
+            `<text x="${padL - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="#78716c">${t}°</text>`
+          );
+        }
+
+        // Right axis rainfall ticks
+        const rainTicks = [0, Math.round(maxRain / 2), Math.round(maxRain)].map((r) => {
+          const y = yRain(r);
+          return `<text x="${W - padR + 6}" y="${y + 4}" text-anchor="start" font-size="10" fill="#0284c7">${r}mm</text>`;
+        });
+
+        // Precipitation bars
+        const barW = stepX * 0.52;
+        const bars = months
+          .map((m, i) => {
+            const x = xFor(i) - barW / 2;
+            const y = yRain(m.rain_mm);
+            const h = padT + plotH - y;
+            return `
+              <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="3" fill="#bae6fd">
+                <title>${m.month}: ${m.rain_mm} mm rain · High ${m.avg_high}°C / Low ${m.avg_low}°C</title>
+              </rect>
+            `;
+          })
+          .join("");
+
+        const highPoints = months.map((m, i) => `${xFor(i).toFixed(1)},${yTemp(m.avg_high).toFixed(1)}`).join(" ");
+        const lowPoints = months.map((m, i) => `${xFor(i).toFixed(1)},${yTemp(m.avg_low).toFixed(1)}`).join(" ");
+
+        const dots = months
+          .map((m, i) => {
+            const x = xFor(i).toFixed(1);
+            const yh = yTemp(m.avg_high).toFixed(1);
+            const yl = yTemp(m.avg_low).toFixed(1);
+            return `
+              <circle cx="${x}" cy="${yh}" r="3.5" fill="#ea580c"><title>${m.month} Avg High: ${m.avg_high}°C</title></circle>
+              <circle cx="${x}" cy="${yl}" r="3.5" fill="#0f766e"><title>${m.month} Avg Low: ${m.avg_low}°C</title></circle>
+              <text x="${x}" y="${H - 10}" text-anchor="middle" font-size="11" fill="#57534e">${m.month}</text>
+            `;
+          })
+          .join("");
+
+        const hottest = months.reduce((a, b) => (b.avg_high > a.avg_high ? b : a));
+        const coolest = months.reduce((a, b) => (b.avg_low < a.avg_low ? b : a));
+        const wettest = months.reduce((a, b) => (b.rain_mm > a.rain_mm ? b : a));
+
+        climateEl.innerHTML = `
+          <div class="climate-svg-wrap">
+            <svg viewBox="0 0 ${W} ${H}" class="climate-svg" role="img" aria-label="Full-year monthly temperature and precipitation chart">
+              ${gridLines.join("")}
+              ${rainTicks.join("")}
+              ${bars}
+              <polyline fill="none" stroke="#ea580c" stroke-width="2.5" points="${highPoints}" />
+              <polyline fill="none" stroke="#0f766e" stroke-width="2.5" points="${lowPoints}" />
+              ${dots}
+            </svg>
+          </div>
+          <div class="climate-highlights">
+            <span>🔥 Warmest: <strong>${hottest.month}</strong> (${hottest.avg_high}°C)</span>
+            <span>❄️ Coolest: <strong>${coolest.month}</strong> (${coolest.avg_low}°C)</span>
+            <span>🌧️ Wettest: <strong>${wettest.month}</strong> (${wettest.rain_mm} mm)</span>
+          </div>
+        `;
+      })
+      .catch((err) => {
+        console.error("Climate chart error:", err);
+        climateEl.innerHTML = `<p class="weather-error">Could not load full-year climate data.</p>`;
       });
   }
 })();

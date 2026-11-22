@@ -3,37 +3,63 @@
 {% block content %}
 <section class="hero">
   <div class="container">
-    <h1>Explore Laos, Beyond the Tourist Track</h1>
+    <h1>
+      {% if active_country == "all" %}
+      Explore Destinations, Beyond the Tourist Track
+      {% else %}
+      Explore {{ active_country_name }}, Beyond the Tourist Track
+      {% endif %}
+    </h1>
     <p class="hero-sub">
-      A local-first travel wiki &amp; route map covering Vientiane, Luang Prabang, Vang Vieng,
-      the Thakhek Loop, and the Bolaven Plateau.
+      A multi-country travel wiki with local guides, interactive maps, live weather forecasts,
+      full-year climate charts, and custom trip route planning.
     </p>
   </div>
 </section>
 
 <section class="container weather-section">
   <div class="weather-strip-header">
-    <span class="weather-strip-title">Live Laos Weather (North → South)</span>
-    <span class="weather-strip-source">via Open-Meteo</span>
+    <span class="weather-strip-title">Weather Forecast (North → South)</span>
+    <span class="weather-strip-source">Live forecast via Open-Meteo</span>
   </div>
   <div id="laos-weather-strip" class="weather-strip">
-    <span class="weather-loading">Loading live forecast...</span>
+    <span class="weather-loading">Loading weather forecast...</span>
   </div>
 </section>
 
 <section class="container map-section">
-  <div id="laos-map" data-active-region="{{ active_region }}"></div>
+  <div
+    id="laos-map"
+    data-active-country="{{ active_country }}"
+    data-active-region="{{ active_region }}"
+  ></div>
+
+  <div id="route-builder-panel" class="route-builder">
+    <div class="route-builder-header">
+      <div>
+        <strong>🧭 Trip Route Builder</strong>
+        <span id="route-summary" class="route-summary">
+          Click <strong>+ Route</strong> on 2 or more places to generate a custom driving route.
+        </span>
+      </div>
+      <div class="route-builder-actions">
+        <button type="button" id="route-sort-ns" class="route-btn" disabled>Sort N → S</button>
+        <button type="button" id="route-clear" class="route-btn route-btn-ghost" disabled>Clear</button>
+      </div>
+    </div>
+    <div id="route-stops" class="route-stops"></div>
+  </div>
 </section>
 
 <section class="container explorer-section">
   <div class="controls-bar">
     <div class="region-pills">
-      <a href="/?region=all"
+      <a href="/?country={{ active_country }}&region=all"
          class="pill {% if active_region == "all" %}active{% endif %}">
         All ({{ total_places }})
       </a>
       {% for r in regions %}
-      <a href="/?region={{ r.slug }}"
+      <a href="/?country={{ active_country }}&region={{ r.slug }}"
          class="pill {% if active_region == r.slug %}active{% endif %}">
         {{ r.name }} ({{ r.count }})
       </a>
@@ -41,16 +67,17 @@
     </div>
 
     <form class="search-form" action="/" method="get">
+      <input type="hidden" name="country" value="{{ active_country }}" />
       <input type="hidden" name="region" value="{{ active_region }}" />
       <input
         type="search"
         name="q"
         value="{{ query }}"
-        placeholder="Search waterfalls, temples, loops..."
+        placeholder="Search places, countries, tags..."
         hx-get="/"
         hx-trigger="input changed delay:200ms, search"
         hx-target="#place-results"
-        hx-include="[name='region']"
+        hx-include="[name='country'], [name='region']"
       />
     </form>
   </div>
@@ -62,6 +89,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/map.js"></script>
-<script src="/static/weather.js"></script>
+<script src="/static/map.js?v=3"></script>
+<script src="/static/weather.js?v=3"></script>
 {% endblock %}

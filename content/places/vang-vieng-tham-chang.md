@@ -6,12 +6,14 @@ region_name = "Vang Vieng"
 category = "Caves & Hiking"
 lat = 18.9102
 lng = 102.4408
+elevation_m = 320
 duration = "Half day"
 best_time = "Oct – Mar (morning hike)"
+climate_summary = "14–34°C · 🌧️ Wet May–Sep"
 summary = "Cross Vang Vieng's iconic orange suspension bridge to the breezy Tham Chang cavern, or tackle the 3-summit Pha Ngern cliff trail for sweeping valley panoramas."
 image = "/static/images/vv-tham-jang.jpg"
 images = ["/static/images/vv-tham-jang.jpg", "/static/images/vv-pha-ngern.jpg"]
-tags = ["vang-vieng", "tham-chang", "pha-ngern", "hiking", "cave"]
+tags = ["cave", "hiking", "nature"]
 +++
 
 ## Overview

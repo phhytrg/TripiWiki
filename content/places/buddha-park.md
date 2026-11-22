@@ -6,12 +6,14 @@ region_name = "Vientiane"
 category = "Art & Culture"
 lat = 17.9125
 lng = 102.7650
+elevation_m = 170
 duration = "2–3 hours"
 best_time = "Late afternoon (golden light)"
+climate_summary = "17–35°C · 🌧️ Wet May–Oct"
 summary = "A surreal riverside sculpture garden 25 km southeast of Vientiane with over 200 Hindu and Buddhist concrete statues."
 image = "/static/images/buddha-park-1.jpg"
 images = ["/static/images/buddha-park-1.jpg", "/static/images/buddha-park-2.jpg"]
-tags = ["vientiane", "buddha-park", "sculptures", "mekong", "day-trip"]
+tags = ["culture", "river", "history"]
 +++
 
 ## Overview

@@ -6,12 +6,14 @@ region_name = "Vientiane"
 category = "Culture & Temples"
 lat = 17.9628
 lng = 102.6114
+elevation_m = 174
 duration = "1.5–2 hours"
 best_time = "Morning (8:00–11:00 AM)"
+climate_summary = "17–35°C · 🌧️ Wet May–Oct"
 summary = "Vientiane's oldest surviving temple lined with thousands of miniature Buddha niches, directly across from the former royal chapel Haw Phra Kaew."
 image = "/static/images/wat-sisaket-1.jpg"
 images = ["/static/images/wat-sisaket-1.jpg", "/static/images/haw-phra-kaew.jpg"]
-tags = ["vientiane", "temples", "history", "architecture"]
+tags = ["temple", "history", "culture"]
 +++
 
 ## Overview

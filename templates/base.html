@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}TripiWiki — Local Travel Guide & Interactive Map{% endblock %}</title>
+  <title>{% block title %}TripiWiki — Multi-Country Travel Guide & Interactive Map{% endblock %}</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="/static/styles.css" />
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
@@ -32,12 +32,11 @@
         </div>
       </div>
       <nav id="top-nav" class="top-nav">
-        <a href="/?region=nong-khiaw">Nong Khiaw</a>
-        <a href="/?region=luang-prabang">Luang Prabang</a>
-        <a href="/?region=vang-vieng">Vang Vieng</a>
-        <a href="/?region=vientiane">Vientiane</a>
-        <a href="/?region=khammouane">Thakhek Loop</a>
-        <a href="/?region=champasak">Bolaven &amp; South</a>
+        <a href="/">Explore All</a>
+        {% for c in countries %}
+        <a href="/?country={{ c.slug }}">{{ c.name }} ({{ c.count }})</a>
+        {% endfor %}
+        <a href="/#route-builder-panel">🧭 Trip Builder</a>
         <a href="/railway" class="nav-railway desktop-rail-link">🚆 Railway</a>
       </nav>
     </div>
@@ -49,7 +48,7 @@
 
   <footer class="site-footer">
     <div class="container">
-      <p>Built with Rust (Axum + Askama + HTMX + Leaflet). Inspired by regional travel wikis.</p>
+      <p>TripiWiki — Local travel guides, interactive maps, full-year climate data &amp; custom route planning.</p>
     </div>
   </footer>
 

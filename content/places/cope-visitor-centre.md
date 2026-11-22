@@ -6,12 +6,14 @@ region_name = "Vientiane"
 category = "History & Food"
 lat = 17.9609
 lng = 102.6197
+elevation_m = 174
 duration = "Half day (afternoon + evening)"
 best_time = "Afternoon + Sunset"
+climate_summary = "17–35°C · 🌧️ Wet May–Oct"
 summary = "An essential, deeply moving exhibition on Laos's UXO history and prosthetic rehabilitation, paired with sunset street food along the Mekong."
 image = "/static/images/cope-vientiane.jpg"
 images = ["/static/images/cope-vientiane.jpg", "/static/images/vientiane-mekong.jpg"]
-tags = ["vientiane", "museum", "history", "mekong", "night-market"]
+tags = ["history", "market", "food"]
 +++
 
 ## Overview

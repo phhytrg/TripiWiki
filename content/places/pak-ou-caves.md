@@ -6,12 +6,14 @@ region_name = "Luang Prabang"
 category = "River & Caves"
 lat = 20.0528
 lng = 102.2122
+elevation_m = 320
 duration = "Half day"
 best_time = "Nov – Mar (morning boat)"
+climate_summary = "14–34°C · 🌧️ Wet May–Sep"
 summary = "Dramatic limestone cliff caves at the Mekong–Nam Ou confluence filled with over 4,000 lacquered Buddha statues, reached by scenic longtail boat."
 image = "/static/images/pak-ou-1.jpg"
 images = ["/static/images/pak-ou-1.jpg", "/static/images/pak-ou-2.jpg"]
-tags = ["luang-prabang", "mekong", "caves", "boat-trip", "buddha"]
+tags = ["cave", "river", "culture"]
 +++
 
 ## Overview

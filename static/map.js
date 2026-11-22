@@ -2,6 +2,7 @@
   const mapEl = document.getElementById("laos-map");
   if (!mapEl) return;
 
+  const activeCountry = mapEl.dataset.activeCountry || "all";
   const activeRegion = mapEl.dataset.activeRegion || "all";
   const map = L.map("laos-map").setView([18.5, 103.5], 6);
 
@@ -14,7 +15,7 @@
   ).addTo(map);
 
   const placesGroup = L.layerGroup().addTo(map);
-  const routesGroup = L.layerGroup().addTo(map);
+  const customRouteGroup = L.layerGroup().addTo(map);
   const railwayLinesGroup = L.layerGroup().addTo(map);
   const stationsGroup = L.layerGroup().addTo(map);
   const markersBySlug = new Map();
@@ -26,7 +27,7 @@
       null,
       {
         '<span class="legend-dot legend-pin"></span> Destinations': placesGroup,
-        '<span class="legend-line legend-dashed"></span> Travel Routes': routesGroup,
+        '<span class="legend-line legend-custom"></span> My Trip Route': customRouteGroup,
         '<span class="legend-line legend-rail"></span> Railway Lines': railwayLinesGroup,
         '<span class="legend-dot legend-station"></span> Train Stations': stationsGroup,
       },
@@ -34,30 +35,7 @@
     )
     .addTo(map);
 
-  // Load dashed route polylines
-  try {
-    const routesRes = await fetch("/api/routes.geojson");
-    const routesData = await routesRes.json();
-    L.geoJSON(routesData, {
-      style: (feature) => ({
-        color: feature.properties?.color || "#0f766e",
-        weight: 3,
-        dashArray: "6 4",
-        opacity: 0.85,
-      }),
-      onEachFeature: (feature, layer) => {
-        if (feature.properties?.name) {
-          layer.bindPopup(
-            `<strong>${feature.properties.name}</strong><br>${feature.properties.description || ""}`
-          );
-        }
-      },
-    }).addTo(routesGroup);
-  } catch (err) {
-    console.warn("Could not load routes:", err);
-  }
-
-  // Load railway lines & stations into separate toggleable layers
+  // Load real OSM railway lines & stations
   try {
     const railRes = await fetch("/api/railway.geojson");
     const railData = await railRes.json();
@@ -106,23 +84,37 @@
 
   // Load place markers
   try {
-    const url =
-      activeRegion && activeRegion !== "all"
-        ? `/api/places.geojson?region=${encodeURIComponent(activeRegion)}`
-        : "/api/places.geojson";
+    const params = new URLSearchParams();
+    if (activeCountry && activeCountry !== "all") params.set("country", activeCountry);
+    if (activeRegion && activeRegion !== "all") params.set("region", activeRegion);
+    const qs = params.toString();
+    const url = qs ? `/api/places.geojson?${qs}` : "/api/places.geojson";
+
     const placesRes = await fetch(url);
     const placesData = await placesRes.json();
 
     const layer = L.geoJSON(placesData, {
       onEachFeature: (feature, marker) => {
         const p = feature.properties;
+        const [lng, lat] = feature.geometry.coordinates;
+        const elevBadge = p.elevation_m ? ` · ⛰️ ${p.elevation_m} m` : "";
         markersBySlug.set(p.slug, marker);
         marker.bindPopup(`
           <div class="map-popup">
-            <span class="popup-region">${p.region_name}</span>
+            <span class="popup-region">${p.country_name} · ${p.region_name}${elevBadge}</span>
             <h4><a href="${p.url}">${p.title}</a></h4>
             <p>${p.summary}</p>
-            <a href="${p.url}" class="popup-link">Read guide &rarr;</a>
+            <div class="popup-actions">
+              <a href="${p.url}" class="popup-link">Read guide &rarr;</a>
+              <button
+                type="button"
+                class="route-toggle-btn popup-route-btn"
+                data-slug="${p.slug}"
+                data-title="${p.title.replace(/"/g, "&quot;")}"
+                data-lat="${lat}"
+                data-lng="${lng}"
+              >+ Route</button>
+            </div>
           </div>
         `);
       },
@@ -135,12 +127,174 @@
     console.warn("Could not load places:", err);
   }
 
+  // --- Interactive Trip Route Builder ---
+  const selectedStops = [];
+  const stopsEl = document.getElementById("route-stops");
+  const summaryEl = document.getElementById("route-summary");
+  const sortNsBtn = document.getElementById("route-sort-ns");
+  const clearBtn = document.getElementById("route-clear");
+
+  function formatDuration(minutes) {
+    if (minutes < 60) return `${minutes} min`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  function syncRouteButtons() {
+    const slugs = new Set(selectedStops.map((s) => s.slug));
+    document.querySelectorAll(".route-toggle-btn").forEach((btn) => {
+      const inRoute = slugs.has(btn.dataset.slug);
+      btn.classList.toggle("active", inRoute);
+      btn.textContent = inRoute ? "✓ In Route" : "+ Route";
+    });
+  }
+
+  async function renderCustomRoute() {
+    syncRouteButtons();
+    customRouteGroup.clearLayers();
+
+    if (stopsEl) {
+      stopsEl.innerHTML = selectedStops
+        .map(
+          (stop, idx) => `
+          <span class="route-stop-chip">
+            <span class="route-stop-num">${idx + 1}</span>
+            ${stop.title}
+            <button type="button" class="route-stop-remove" data-remove-slug="${stop.slug}" aria-label="Remove ${stop.title}">&times;</button>
+          </span>
+        `
+        )
+        .join("");
+    }
+
+    if (sortNsBtn) sortNsBtn.disabled = selectedStops.length < 2;
+    if (clearBtn) clearBtn.disabled = selectedStops.length === 0;
+
+    // Draw numbered markers for selected stops
+    selectedStops.forEach((stop, idx) => {
+      L.marker([stop.lat, stop.lng], {
+        icon: L.divIcon({
+          className: "route-pin-badge",
+          html: `<span>${idx + 1}</span>`,
+          iconSize: [26, 26],
+          iconAnchor: [13, 13],
+        }),
+        zIndexOffset: 500,
+      }).addTo(customRouteGroup);
+    });
+
+    if (selectedStops.length === 0) {
+      if (summaryEl) {
+        summaryEl.innerHTML =
+          "Click <strong>+ Route</strong> on 2 or more places to generate a custom driving route.";
+      }
+      return;
+    }
+
+    if (selectedStops.length === 1) {
+      if (summaryEl) {
+        summaryEl.textContent = "1 stop selected — pick at least 1 more place to generate a route.";
+      }
+      return;
+    }
+
+    if (summaryEl) {
+      summaryEl.textContent = "Generating route...";
+    }
+
+    const coords = selectedStops.map((s) => `${s.lng},${s.lat}`).join(";");
+    try {
+      const res = await fetch(`/api/route/generate?coords=${encodeURIComponent(coords)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      const routeLayer = L.geoJSON(data.geometry, {
+        style: {
+          color: "#ea580c",
+          weight: 4,
+          opacity: 0.9,
+          dashArray: data.mode === "direct" ? "8 6" : null,
+        },
+      }).addTo(customRouteGroup);
+
+      if (!map.hasLayer(customRouteGroup)) {
+        customRouteGroup.addTo(map);
+      }
+
+      map.fitBounds(routeLayer.getBounds(), { padding: [45, 45], maxZoom: 12 });
+
+      if (summaryEl) {
+        const modeLabel = data.mode === "driving" ? "Road route" : "Estimated direct route";
+        summaryEl.innerHTML = `<strong>${selectedStops.length} stops</strong> · ${modeLabel}: <strong>${data.distance_km} km</strong> (~${formatDuration(data.duration_min)})`;
+      }
+    } catch (err) {
+      console.error("Route generation failed:", err);
+      if (summaryEl) {
+        summaryEl.textContent = "Could not generate route right now.";
+      }
+    }
+  }
+
+  function toggleStop(stop) {
+    const idx = selectedStops.findIndex((s) => s.slug === stop.slug);
+    if (idx >= 0) {
+      selectedStops.splice(idx, 1);
+    } else {
+      selectedStops.push(stop);
+    }
+    renderCustomRoute();
+  }
+
+  if (sortNsBtn) {
+    sortNsBtn.addEventListener("click", () => {
+      selectedStops.sort((a, b) => b.lat - a.lat);
+      renderCustomRoute();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      selectedStops.length = 0;
+      renderCustomRoute();
+    });
+  }
+
+  // Keep button active states synced after HTMX search/filter swaps
+  document.body.addEventListener("htmx:afterSwap", syncRouteButtons);
+
   // First tap/click on a card -> focus it on the map;
-  // double-click (or second tap on an already-selected card on touch devices) -> open its guide page
+  // double-click (or second tap on touch) -> open guide page
   const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
 
   document.addEventListener("click", (event) => {
-    if (event.target.closest(".carousel-dot")) return;
+    // Handle "+ Route" button clicks (on cards or inside map popups)
+    const routeBtn = event.target.closest(".route-toggle-btn");
+    if (routeBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleStop({
+        slug: routeBtn.dataset.slug,
+        title: routeBtn.dataset.title,
+        lat: parseFloat(routeBtn.dataset.lat),
+        lng: parseFloat(routeBtn.dataset.lng),
+      });
+      return;
+    }
+
+    // Handle removing a stop chip
+    const removeBtn = event.target.closest(".route-stop-remove");
+    if (removeBtn) {
+      const slug = removeBtn.dataset.removeSlug;
+      const idx = selectedStops.findIndex((s) => s.slug === slug);
+      if (idx >= 0) {
+        selectedStops.splice(idx, 1);
+        renderCustomRoute();
+      }
+      return;
+    }
+
+    if (event.target.closest(".carousel-dot") || event.target.closest(".card-tag")) return;
     const card = event.target.closest(".place-card");
     if (!card) return;
     if (event.metaKey || event.ctrlKey) return;
@@ -179,7 +333,13 @@
   });
 
   document.addEventListener("dblclick", (event) => {
-    if (event.target.closest(".carousel-dot")) return;
+    if (
+      event.target.closest(".carousel-dot") ||
+      event.target.closest(".card-tag") ||
+      event.target.closest(".route-toggle-btn")
+    ) {
+      return;
+    }
     const card = event.target.closest(".place-card");
     if (!card || !card.dataset.slug) return;
 

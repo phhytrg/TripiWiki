@@ -6,12 +6,14 @@ region_name = "Vang Vieng"
 category = "Lagoons & Caves"
 lat = 18.9267
 lng = 102.3955
+elevation_m = 260
 duration = "Half day"
 best_time = "Nov – Apr (before 10:00 AM)"
+climate_summary = "14–34°C · 🌧️ Wet May–Sep"
 summary = "Spring-fed turquoise karst swimming lagoon with rope swings, right below the dramatic Tham Phu Kham cavern and its reclining bronze Buddha."
 image = "/static/images/vv-blue-lagoon.jpg"
 images = ["/static/images/vv-blue-lagoon.jpg", "/static/images/vv-phu-kham.jpg"]
-tags = ["vang-vieng", "blue-lagoon", "cave", "swimming", "karst"]
+tags = ["nature", "cave", "adventure"]
 +++
 
 ## Overview

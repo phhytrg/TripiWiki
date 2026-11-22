@@ -6,12 +6,14 @@ region_name = "Luang Prabang"
 category = "Nature & Waterfalls"
 lat = 19.7493
 lng = 101.9918
+elevation_m = 440
 duration = "Half day"
 best_time = "Nov – Apr"
+climate_summary = "13–33°C · 🌧️ Wet May–Sep"
 summary = "Turquoise multi-tiered limestone cascades 30 km south of Luang Prabang, with jungle trails and swimming pools."
 image = "/static/images/kuang-si-falls.jpg"
 images = ["/static/images/kuang-si-falls.jpg", "/static/images/kuang-si.jpg", "/static/images/kuang-si-2.jpg"]
-tags = ["luang-prabang", "waterfall", "swimming", "nature"]
+tags = ["waterfall", "nature", "hiking"]
 +++
 
 ## Overview

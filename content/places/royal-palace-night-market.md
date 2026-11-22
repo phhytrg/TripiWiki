@@ -6,12 +6,14 @@ region_name = "Luang Prabang"
 category = "Heritage & Markets"
 lat = 19.8919
 lng = 102.1356
+elevation_m = 305
 duration = "Half day (afternoon + evening)"
 best_time = "Daily (Palace morning/afternoon, Market from 5:00 PM)"
+climate_summary = "14–34°C · 🌧️ Wet May–Sep"
 summary = "Explore the former Lao royal residence (Haw Kham) and golden Phra Bang shrine, then wander the lantern-lit craft and food stalls along Sisavangvong Road."
 image = "/static/images/royal-palace-lp.jpg"
 images = ["/static/images/royal-palace-lp.jpg", "/static/images/lp-night-market.jpg"]
-tags = ["luang-prabang", "museum", "night-market", "food", "handicrafts"]
+tags = ["culture", "market", "food"]
 +++
 
 ## Overview

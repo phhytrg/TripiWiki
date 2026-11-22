@@ -6,12 +6,14 @@ region_name = "Nong Khiaw"
 category = "Mountains & River"
 lat = 20.5718
 lng = 102.6134
+elevation_m = 750
 duration = "2–3 days"
 best_time = "Nov – Feb"
+climate_summary = "12–32°C · 🌧️ Wet May–Sep · Misty winter mornings"
 summary = "Sleepy Nam Ou river town framed by towering limestone cliffs, famous for above-the-clouds sunrise hikes and boat trips to Muang Ngoi."
 image = "/static/images/nong-khiaw.jpg"
 images = ["/static/images/nong-khiaw.jpg", "/static/images/nong-khiaw-muangngoi.jpg"]
-tags = ["nong-khiaw", "trekking", "nam-ou", "muang-ngoi"]
+tags = ["hiking", "nature", "river"]
 +++
 
 ## Overview

@@ -6,12 +6,14 @@ region_name = "Luang Prabang"
 category = "Nature & Waterfalls"
 lat = 19.8404
 lng = 102.2229
+elevation_m = 380
 duration = "Half day"
 best_time = "Aug – Dec (full water flow)"
+climate_summary = "14–34°C · 🌧️ Wet May–Sep · Full flow Aug–Dec"
 summary = "Wide multi-tiered limestone cascades tucked in jungle along the Nam Khan River, reached by a short wooden boat ride—quieter than Kuang Si."
 image = "/static/images/tad-sae-1.jpg"
 images = ["/static/images/tad-sae-1.jpg", "/static/images/tad-sae-2.jpg"]
-tags = ["luang-prabang", "waterfall", "nam-khan", "nature", "swimming"]
+tags = ["waterfall", "nature", "river"]
 +++
 
 ## Overview

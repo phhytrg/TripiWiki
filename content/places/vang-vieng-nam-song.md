@@ -6,12 +6,14 @@ region_name = "Vang Vieng"
 category = "River & Adventure"
 lat = 18.9238
 lng = 102.4472
+elevation_m = 250
 duration = "Half day (sunrise + afternoon)"
 best_time = "Nov – Mar (calm clear mornings)"
+climate_summary = "14–34°C · 🌧️ Wet May–Sep"
 summary = "Drift above misty limestone spires in a sunrise hot-air balloon, then spend the afternoon kayaking or relaxing at riverside cafes along the Nam Song."
 image = "/static/images/vv-balloon-1.jpg"
 images = ["/static/images/vv-balloon-1.jpg", "/static/images/vv-balloon-2.jpg", "/static/images/vang-vieng.jpg"]
-tags = ["vang-vieng", "hot-air-balloon", "kayaking", "nam-song", "sunrise"]
+tags = ["adventure", "river", "nature"]
 +++
 
 ## Overview

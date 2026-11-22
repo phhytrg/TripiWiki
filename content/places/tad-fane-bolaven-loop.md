@@ -6,12 +6,14 @@ region_name = "Champasak & South"
 category = "Coffee & Waterfalls"
 lat = 15.1823
 lng = 106.1268
+elevation_m = 1200
 duration = "2–3 days"
 best_time = "Oct – Feb"
+climate_summary = "11–28°C · 🌧️ Wet May–Oct · Cool highlands"
 summary = "Cool volcanic highlands east of Pakse, packed with twin 120m waterfalls, specialty Lao coffee farms, and ethnic villages."
 image = "/static/images/laos-loop.jpg"
 images = ["/static/images/laos-loop.jpg", "/static/images/bolaven-tadyuang.jpg"]
-tags = ["pakse", "bolaven", "waterfall", "coffee", "motorbike"]
+tags = ["waterfall", "motorbike", "nature", "food"]
 +++
 
 ## Overview

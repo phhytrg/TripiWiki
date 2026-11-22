@@ -6,12 +6,14 @@ region_name = "Luang Prabang"
 category = "Heritage & Town"
 lat = 19.8895
 lng = 102.1347
+elevation_m = 305
 duration = "2–3 days"
 best_time = "Nov – Feb"
+climate_summary = "14–34°C · 🌧️ Wet May–Sep"
 summary = "UNESCO-listed peninsula between the Mekong and Nam Khan rivers, known for gilded wats, bamboo bridges, and night markets."
 image = "/static/images/mount-phousi.jpg"
 images = ["/static/images/mount-phousi.jpg", "/static/images/luang-prabang-wat.jpg", "/static/images/luang-prabang-phousi.jpg"]
-tags = ["luang-prabang", "unesco", "temples", "sunset"]
+tags = ["culture", "temple", "history"]
 +++
 
 ## Overview

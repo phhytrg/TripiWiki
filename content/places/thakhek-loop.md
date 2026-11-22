@@ -6,12 +6,14 @@ region_name = "Khammouane"
 category = "Motorbike Loop"
 lat = 17.4089
 lng = 104.8306
+elevation_m = 550
 duration = "3–4 days"
 best_time = "Nov – Mar"
+climate_summary = "16–35°C · 🌧️ Wet May–Sep"
 summary = "Laos's iconic 450 km motorbike loop through karst valleys, flooded forests, and the 7.5 km Kong Lor Cave river tunnel."
 image = "/static/images/thakhek-konglor.jpg"
 images = ["/static/images/thakhek-konglor.jpg", "/static/images/thakhek-konglor2.jpg", "/static/images/laos-loop.jpg"]
-tags = ["thakhek", "motorbike", "loop", "kong-lor-cave"]
+tags = ["motorbike", "cave", "adventure"]
 +++
 
 ## Overview

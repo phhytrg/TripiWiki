@@ -6,14 +6,18 @@
 <article class="container place-detail">
   <div class="breadcrumb">
     <a href="/">Home</a> /
-    <a href="/?region={{ place.meta.region }}">{{ place.meta.region_name }}</a> /
+    <a href="/?country={{ place.meta.country }}">{{ place.meta.country_name }}</a> /
+    <a href="/?country={{ place.meta.country }}&region={{ place.meta.region }}">{{ place.meta.region_name }}</a> /
     <span>{{ place.meta.title }}</span>
   </div>
 
   <header class="place-header">
-    <div class="card-meta">
+    <div class="card-meta place-header-tags">
       <span class="region-pill">{{ place.meta.region_name }}</span>
-      <span class="category-label">{{ place.meta.category }}</span>
+      {% let header_tags = place.meta.display_tags() %}
+      {% for tag in header_tags.iter() %}
+      <a href="/?q={{ tag }}" class="card-tag tag-{{ tag }}">{{ tag }}</a>
+      {% endfor %}
     </div>
     <h1>{{ place.meta.title }}</h1>
     <p class="place-summary">{{ place.meta.summary }}</p>
@@ -47,13 +51,39 @@
     <div class="quick-facts">
       <div><strong>Duration:</strong> {{ place.meta.duration }}</div>
       <div><strong>Best Time:</strong> {{ place.meta.best_time }}</div>
+      {% if let Some(elev) = place.meta.elevation_m %}
+      <div><strong>Elevation:</strong> {{ elev }} m above sea level</div>
+      {% endif %}
       <div><strong>Coordinates:</strong> {{ place.meta.lat }}, {{ place.meta.lng }}</div>
     </div>
   </header>
 
   <div class="place-layout">
-    <div class="prose">
-      {{ place.html_body|safe }}
+    <div class="place-main">
+      <div class="prose">
+        {{ place.html_body|safe }}
+      </div>
+
+      <section class="climate-box">
+        <div class="climate-header">
+          <div>
+            <h2>Full-Year Climate &amp; Rainfall (Jan – Dec)</h2>
+            <p class="climate-sub">Monthly average high/low temperature (°C) and total precipitation (mm).</p>
+          </div>
+          <div class="climate-legend">
+            <span class="leg-item"><span class="leg-swatch leg-high"></span>Avg High °C</span>
+            <span class="leg-item"><span class="leg-swatch leg-low"></span>Avg Low °C</span>
+            <span class="leg-item"><span class="leg-swatch leg-rain"></span>Rain (mm)</span>
+          </div>
+        </div>
+        <div
+          id="place-climate-chart"
+          data-lat="{{ place.meta.lat }}"
+          data-lng="{{ place.meta.lng }}"
+        >
+          <span class="weather-loading">Loading full-year climate chart...</span>
+        </div>
+      </section>
     </div>
 
     <aside class="place-sidebar">
@@ -77,7 +107,7 @@
         <h4>Tags</h4>
         <div class="tags-list">
           {% for tag in place.meta.tags %}
-          <a href="/?q={{ tag }}" class="tag">{{ tag }}</a>
+          <a href="/?q={{ tag }}" class="card-tag tag-{{ tag }}">{{ tag }}</a>
           {% endfor %}
         </div>
       </div>
@@ -115,5 +145,5 @@
     L.marker([lat, lng]).addTo(map).bindPopup(el.dataset.title).openPopup();
   }
 </script>
-<script src="/static/weather.js"></script>
+<script src="/static/weather.js?v=3"></script>
 {% endblock %}

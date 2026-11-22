@@ -6,12 +6,14 @@ region_name = "Vientiane"
 category = "Culture & Temples"
 lat = 17.9757
 lng = 102.6365
+elevation_m = 174
 duration = "Half day"
 best_time = "Nov – Feb (morning)"
+climate_summary = "17–35°C · 🌧️ Wet May–Oct"
 summary = "Laos's most sacred golden stupa, paired with riverside cafes and French-colonial streets in the capital."
 image = "/static/images/vientiane.jpg"
 images = ["/static/images/vientiane.jpg", "/static/images/vientiane-patuxai.jpg", "/static/images/vientiane-stupa2.jpg"]
-tags = ["vientiane", "temple", "stupa", "capital", "culture"]
+tags = ["temple", "culture", "history"]
 +++
 
 ## Overview

@@ -6,12 +6,14 @@ region_name = "Vang Vieng"
 category = "Hiking & Adventure"
 lat = 18.9233
 lng = 102.4114
+elevation_m = 550
 duration = "1–2 days"
 best_time = "Oct – Mar (sunrise)"
+climate_summary = "13–33°C · 🌧️ Wet May–Sep"
 summary = "Jagged limestone karst peaks, blue lagoons, and sunrise viewpoints overlooking Vang Vieng's rice paddies."
 image = "/static/images/vang-vieng-namxay.jpg"
 images = ["/static/images/vang-vieng-namxay.jpg", "/static/images/vang-vieng.jpg", "/static/images/vang-vieng-reflection.jpg"]
-tags = ["vang-vieng", "viewpoint", "hiking", "karst", "lagoon"]
+tags = ["hiking", "nature", "adventure"]
 +++
 
 ## Overview

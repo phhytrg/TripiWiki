@@ -9,12 +9,14 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
 
-use crate::content::{Place, RegionInfo, WikiStore};
+use crate::content::{CountryInfo, Place, RegionInfo, WikiStore};
 use crate::gdrive::GDriveClient;
+use crate::weather::WeatherClient;
 
 pub struct AppState {
     pub store: WikiStore,
     pub gdrive: GDriveClient,
+    pub weather: WeatherClient,
 }
 
 pub struct HtmlTemplate<T>(pub T);
@@ -32,11 +34,49 @@ impl<T: Template> IntoResponse for HtmlTemplate<T> {
     }
 }
 
+pub struct RegionSection<'a> {
+    pub country_slug: String,
+    pub country_name: String,
+    pub region_slug: String,
+    pub region_name: String,
+    pub places: Vec<&'a Place>,
+}
+
+fn group_places_by_region<'a>(places: Vec<&'a Place>) -> Vec<RegionSection<'a>> {
+    let mut sections: Vec<RegionSection<'a>> = Vec::new();
+    for place in places {
+        if let Some(sec) = sections
+            .iter_mut()
+            .find(|s| s.country_slug == place.meta.country && s.region_slug == place.meta.region)
+        {
+            sec.places.push(place);
+        } else {
+            sections.push(RegionSection {
+                country_slug: place.meta.country.clone(),
+                country_name: place.meta.country_name.clone(),
+                region_slug: place.meta.region.clone(),
+                region_name: place.meta.region_name.clone(),
+                places: vec![place],
+            });
+        }
+    }
+    // Sort province sections North -> South by average latitude
+    sections.sort_by(|a, b| {
+        let avg_a = a.places.iter().map(|p| p.meta.lat).sum::<f64>() / a.places.len() as f64;
+        let avg_b = b.places.iter().map(|p| p.meta.lat).sum::<f64>() / b.places.len() as f64;
+        avg_b.total_cmp(&avg_a)
+    });
+    sections
+}
+
 #[derive(Template)]
 #[template(path = "index.html")]
 pub struct IndexTemplate<'a> {
-    pub regions: &'a [RegionInfo],
-    pub places: Vec<&'a Place>,
+    pub countries: &'a [CountryInfo],
+    pub regions: Vec<RegionInfo>,
+    pub sections: Vec<RegionSection<'a>>,
+    pub active_country: String,
+    pub active_country_name: String,
     pub active_region: String,
     pub query: String,
     pub total_places: usize,
@@ -46,21 +86,25 @@ pub struct IndexTemplate<'a> {
 #[template(path = "place.html")]
 pub struct PlaceTemplate<'a> {
     pub place: &'a Place,
+    pub countries: &'a [CountryInfo],
     pub related: Vec<&'a Place>,
 }
 
 #[derive(Template)]
 #[template(path = "partials/place_cards.html")]
 pub struct PlaceCardsPartial<'a> {
-    pub places: Vec<&'a Place>,
+    pub sections: Vec<RegionSection<'a>>,
 }
 
 #[derive(Template)]
 #[template(path = "railway.html")]
-pub struct RailwayTemplate;
+pub struct RailwayTemplate<'a> {
+    pub countries: &'a [CountryInfo],
+}
 
 #[derive(Deserialize, Default)]
 pub struct SearchParams {
+    pub country: Option<String>,
     pub region: Option<String>,
     pub q: Option<String>,
 }
@@ -70,6 +114,11 @@ pub async fn index_handler(
     Query(params): Query<SearchParams>,
     headers: HeaderMap,
 ) -> Response {
+    let active_country = params
+        .country
+        .clone()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "all".to_string());
     let active_region = params
         .region
         .clone()
@@ -77,18 +126,37 @@ pub async fn index_handler(
         .unwrap_or_else(|| "all".to_string());
     let query = params.q.clone().unwrap_or_default();
 
-    let places = state.store.filter(Some(&active_region), Some(&query));
+    let places = state
+        .store
+        .filter(Some(&active_country), Some(&active_region), Some(&query));
+    let sections = group_places_by_region(places);
 
     if headers.contains_key("hx-request") {
-        return HtmlTemplate(PlaceCardsPartial { places }).into_response();
+        return HtmlTemplate(PlaceCardsPartial { sections }).into_response();
     }
 
+    let regions = state.store.regions_for_country(Some(&active_country));
+    let total_places = state
+        .store
+        .filter(Some(&active_country), None, None)
+        .len();
+    let active_country_name = state
+        .store
+        .countries
+        .iter()
+        .find(|c| c.slug == active_country)
+        .map(|c| c.name.clone())
+        .unwrap_or_else(|| "All Destinations".to_string());
+
     HtmlTemplate(IndexTemplate {
-        regions: &state.store.regions,
-        places,
+        countries: &state.store.countries,
+        regions,
+        sections,
+        active_country,
+        active_country_name,
         active_region,
         query,
-        total_places: state.store.places.len(),
+        total_places,
     })
     .into_response()
 }
@@ -103,28 +171,36 @@ pub async fn place_detail_handler(
 
     let related: Vec<&Place> = state
         .store
-        .filter(Some(&place.meta.region), None)
+        .filter(Some(&place.meta.country), Some(&place.meta.region), None)
         .into_iter()
         .filter(|p| p.meta.slug != place.meta.slug)
         .take(3)
         .collect();
 
-    HtmlTemplate(PlaceTemplate { place, related }).into_response()
+    HtmlTemplate(PlaceTemplate {
+        place,
+        countries: &state.store.countries,
+        related,
+    })
+    .into_response()
 }
 
 pub async fn places_geojson_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<SearchParams>,
 ) -> Json<Value> {
-    Json(state.store.places_geojson(params.region.as_deref()))
+    Json(
+        state
+            .store
+            .places_geojson(params.country.as_deref(), params.region.as_deref()),
+    )
 }
 
-pub async fn routes_geojson_handler(State(state): State<Arc<AppState>>) -> Json<Value> {
-    Json(state.store.routes_geojson.clone())
-}
-
-pub async fn railway_handler() -> Response {
-    HtmlTemplate(RailwayTemplate).into_response()
+pub async fn railway_handler(State(state): State<Arc<AppState>>) -> Response {
+    HtmlTemplate(RailwayTemplate {
+        countries: &state.store.countries,
+    })
+    .into_response()
 }
 
 pub async fn railway_geojson_handler(State(state): State<Arc<AppState>>) -> Json<Value> {
