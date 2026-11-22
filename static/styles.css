@@ -284,6 +284,63 @@ a:hover {
 .card-carousel {
   position: relative;
   overflow: hidden;
+  background: #e7e5e4;
+}
+
+.card-carousel.is-loading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #e7e5e4 25%, #f5f5f4 50%, #e7e5e4 75%);
+  background-size: 200% 100%;
+  animation: img-shimmer 1.3s infinite linear;
+  z-index: 1;
+}
+
+.img-spinner {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.card-carousel.is-loading .img-spinner {
+  display: flex;
+}
+
+.img-spinner span {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(15, 118, 110, 0.22);
+  border-top-color: var(--accent);
+  animation: img-spin 0.75s linear infinite;
+}
+
+.card-carousel.is-loading .carousel-slide.active {
+  opacity: 0;
+}
+
+.carousel-slide.is-loaded {
+  opacity: 1;
+}
+
+@keyframes img-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes img-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .card-image-link {

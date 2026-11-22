@@ -27,7 +27,8 @@
       data-lng="{{ place.meta.lng }}"
     >
       {% if !gallery.is_empty() %}
-      <div class="card-carousel">
+      <div class="card-carousel is-loading">
+        <div class="img-spinner" aria-hidden="true"><span></span></div>
         <a href="/places/{{ place.meta.slug }}" class="card-image-link">
           {% for img in gallery.iter() %}
           <img

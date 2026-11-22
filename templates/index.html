@@ -22,7 +22,7 @@
     <span class="weather-strip-title">Weather Forecast (North → South)</span>
     <span class="weather-strip-source">Live forecast via Open-Meteo</span>
   </div>
-  <div id="laos-weather-strip" class="weather-strip">
+  <div id="laos-weather-strip" class="weather-strip" data-active-country="{{ active_country }}">
     <span class="weather-loading">Loading weather forecast...</span>
   </div>
 </section>
@@ -90,5 +90,5 @@
 
 {% block scripts %}
 <script src="/static/map.js?v=3"></script>
-<script src="/static/weather.js?v=3"></script>
+<script src="/static/weather.js?v=4"></script>
 {% endblock %}

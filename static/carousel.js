@@ -1,3 +1,34 @@
+function syncCarouselLoading(carousel) {
+  const activeImg = carousel.querySelector(".carousel-slide.active");
+  if (!activeImg) {
+    carousel.classList.remove("is-loading");
+    return;
+  }
+
+  if (activeImg.complete && activeImg.naturalWidth > 0) {
+    carousel.classList.remove("is-loading");
+    activeImg.classList.add("is-loaded");
+    return;
+  }
+
+  carousel.classList.add("is-loading");
+  activeImg.classList.remove("is-loaded");
+
+  const done = () => {
+    if (carousel.querySelector(".carousel-slide.active") === activeImg) {
+      carousel.classList.remove("is-loading");
+    }
+    activeImg.classList.add("is-loaded");
+  };
+
+  activeImg.addEventListener("load", done, { once: true });
+  activeImg.addEventListener("error", done, { once: true });
+}
+
+function initAllCarousels(root = document) {
+  root.querySelectorAll(".card-carousel").forEach(syncCarouselLoading);
+}
+
 function setCarouselSlide(carousel, index) {
   const slides = carousel.querySelectorAll(".carousel-slide");
   const dots = carousel.querySelectorAll(".carousel-dot");
@@ -13,7 +44,14 @@ function setCarouselSlide(carousel, index) {
     btn.classList.toggle("active", i === next);
     btn.setAttribute("aria-selected", i === next ? "true" : "false");
   });
+
+  syncCarouselLoading(carousel);
 }
+
+document.addEventListener("DOMContentLoaded", () => initAllCarousels(document));
+document.addEventListener("htmx:afterSwap", (event) => {
+  initAllCarousels(event.target || document);
+});
 
 document.addEventListener("click", (event) => {
   const dot = event.target.closest(".carousel-dot");

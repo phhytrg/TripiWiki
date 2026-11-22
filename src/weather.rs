@@ -35,6 +35,11 @@ pub struct PlaceWeatherQuery {
     pub lng: f64,
 }
 
+#[derive(Deserialize, Default)]
+pub struct HubsWeatherQuery {
+    pub country: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub struct RouteGenerateQuery {
     pub coords: String,
@@ -96,15 +101,48 @@ impl WeatherClient {
     }
 }
 
-pub async fn hubs_weather_handler(State(state): State<Arc<AppState>>) -> Response {
-    let url = "https://api.open-meteo.com/v1/forecast\
-        ?latitude=20.5718,19.8895,18.9233,17.9757,17.4089,15.1823\
-        &longitude=102.6134,102.1347,102.4114,102.6365,104.8306,106.1268\
-        &current=temperature_2m,weather_code\
-        &daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max\
-        &timezone=Asia%2FBangkok&forecast_days=1";
+pub async fn hubs_weather_handler(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<HubsWeatherQuery>,
+) -> Response {
+    let country = q
+        .country
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("all");
 
-    match state.weather.fetch_cached("hubs", url, CACHE_TTL).await {
+    let (cache_key, url) = match country {
+        "malaysia" => (
+            "hubs:malaysia",
+            "https://api.open-meteo.com/v1/forecast\
+            ?latitude=6.0753,5.9804,5.8647,4.3995,4.0419,1.5533\
+            &longitude=116.5581,116.0735,117.9497,113.9914,114.8128,110.3592\
+            &current=temperature_2m,weather_code\
+            &daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max\
+            &timezone=Asia%2FKuching&forecast_days=1",
+        ),
+        "laos" => (
+            "hubs:laos",
+            "https://api.open-meteo.com/v1/forecast\
+            ?latitude=20.5718,19.8895,18.9233,17.9757,17.4089,15.1823\
+            &longitude=102.6134,102.1347,102.4114,102.6365,104.8306,106.1268\
+            &current=temperature_2m,weather_code\
+            &daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max\
+            &timezone=Asia%2FBangkok&forecast_days=1",
+        ),
+        _ => (
+            "hubs:all",
+            "https://api.open-meteo.com/v1/forecast\
+            ?latitude=19.8895,18.9233,17.9757,5.9804,4.3995,1.5533\
+            &longitude=102.1347,102.4114,102.6365,116.0735,113.9914,110.3592\
+            &current=temperature_2m,weather_code\
+            &daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max\
+            &timezone=auto&forecast_days=1",
+        ),
+    };
+
+    match state.weather.fetch_cached(cache_key, url, CACHE_TTL).await {
         Ok(val) => (
             [(header::CACHE_CONTROL, "public, max-age=300")],
             Json(val),

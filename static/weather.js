@@ -36,19 +36,40 @@
     return res.json();
   }
 
-  // 1. Home page: batched weather forecast strip for hubs (North -> South)
+  // 1. Home page: batched weather forecast strip for hubs (country-aware, North -> South)
   const stripEl = document.getElementById("laos-weather-strip");
   if (stripEl) {
-    const hubs = [
-      { name: "Nong Khiaw", region: "nong-khiaw" },
-      { name: "Luang Prabang", region: "luang-prabang" },
-      { name: "Vang Vieng", region: "vang-vieng" },
-      { name: "Vientiane", region: "vientiane" },
-      { name: "Thakhek", region: "khammouane" },
-      { name: "Pakse / Bolaven", region: "champasak" },
-    ];
+    const activeCountry = stripEl.dataset.activeCountry || "all";
+    const hubsByCountry = {
+      laos: [
+        { name: "Nong Khiaw", url: "/?country=laos&region=nong-khiaw" },
+        { name: "Luang Prabang", url: "/?country=laos&region=luang-prabang" },
+        { name: "Vang Vieng", url: "/?country=laos&region=vang-vieng" },
+        { name: "Vientiane", url: "/?country=laos&region=vientiane" },
+        { name: "Thakhek", url: "/?country=laos&region=khammouane" },
+        { name: "Pakse / Bolaven", url: "/?country=laos&region=champasak" },
+      ],
+      malaysia: [
+        { name: "Mt. Kinabalu", url: "/?country=malaysia&region=sabah" },
+        { name: "Kota Kinabalu", url: "/?country=malaysia&region=sabah" },
+        { name: "Sandakan / Sepilok", url: "/?country=malaysia&region=sabah" },
+        { name: "Miri · Brunei", url: "/?country=malaysia&region=sarawak" },
+        { name: "Mulu Caves", url: "/?country=malaysia&region=sarawak" },
+        { name: "Kuching", url: "/?country=malaysia&region=sarawak" },
+      ],
+      all: [
+        { name: "Luang Prabang", url: "/?country=laos&region=luang-prabang" },
+        { name: "Vang Vieng", url: "/?country=laos&region=vang-vieng" },
+        { name: "Vientiane", url: "/?country=laos&region=vientiane" },
+        { name: "Kota Kinabalu", url: "/?country=malaysia&region=sabah" },
+        { name: "Miri · Brunei", url: "/?country=malaysia&region=sarawak" },
+        { name: "Kuching", url: "/?country=malaysia&region=sarawak" },
+      ],
+    };
 
-    fetchJson("/api/weather/hubs")
+    const hubs = hubsByCountry[activeCountry] || hubsByCountry.all;
+
+    fetchJson(`/api/weather/hubs?country=${encodeURIComponent(activeCountry)}`)
       .then((data) => {
         const list = Array.isArray(data) ? data : [data];
         const html = hubs
@@ -62,7 +83,7 @@
             const rain = item.daily?.precipitation_probability_max?.[0];
             const rainText = rain != null ? `💧 ${rain}%` : "";
             return `
-              <a href="/?region=${hub.region}" class="weather-chip" title="${label}">
+              <a href="${hub.url}" class="weather-chip" title="${label}">
                 <span class="weather-chip-city">${hub.name}</span>
                 <span class="weather-chip-main">${icon} <strong>${temp}°C</strong></span>
                 <span class="weather-chip-sub">${lo}° / ${hi}° ${rainText}</span>
