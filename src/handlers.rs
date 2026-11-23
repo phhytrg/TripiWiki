@@ -8,13 +8,14 @@ use axum::{
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use crate::content::{CountryInfo, Place, RegionInfo, WikiStore};
 use crate::gdrive::GDriveClient;
 use crate::weather::WeatherClient;
 
 pub struct AppState {
-    pub store: WikiStore,
+    pub store: RwLock<WikiStore>,
     pub gdrive: GDriveClient,
     pub weather: WeatherClient,
 }
@@ -131,22 +132,17 @@ pub async fn index_handler(
         .unwrap_or_else(|| "all".to_string());
     let query = params.q.clone().unwrap_or_default();
 
-    let places = state
-        .store
-        .filter(Some(&active_country), Some(&active_region), Some(&query));
+    let store = state.store.read().await;
+    let places = store.filter(Some(&active_country), Some(&active_region), Some(&query));
     let sections = group_places_by_region(places);
 
     if headers.contains_key("hx-request") {
         return HtmlTemplate(PlaceCardsPartial { sections }).into_response();
     }
 
-    let regions = state.store.regions_for_country(Some(&active_country));
-    let total_places = state
-        .store
-        .filter(Some(&active_country), None, None)
-        .len();
-    let active_country_name = state
-        .store
+    let regions = store.regions_for_country(Some(&active_country));
+    let total_places = store.filter(Some(&active_country), None, None).len();
+    let active_country_name = store
         .countries
         .iter()
         .find(|c| c.slug == active_country)
@@ -154,7 +150,7 @@ pub async fn index_handler(
         .unwrap_or_else(|| "All Destinations".to_string());
 
     HtmlTemplate(IndexTemplate {
-        countries: &state.store.countries,
+        countries: &store.countries,
         regions,
         sections,
         active_country,
@@ -170,12 +166,12 @@ pub async fn place_detail_handler(
     State(state): State<Arc<AppState>>,
     Path(slug): Path<String>,
 ) -> Response {
-    let Some(place) = state.store.find_by_slug(&slug) else {
+    let store = state.store.read().await;
+    let Some(place) = store.find_by_slug(&slug) else {
         return (StatusCode::NOT_FOUND, "Destination not found").into_response();
     };
 
-    let related: Vec<&Place> = state
-        .store
+    let related: Vec<&Place> = store
         .filter(Some(&place.meta.country), Some(&place.meta.region), None)
         .into_iter()
         .filter(|p| p.meta.slug != place.meta.slug)
@@ -184,7 +180,7 @@ pub async fn place_detail_handler(
 
     HtmlTemplate(PlaceTemplate {
         place,
-        countries: &state.store.countries,
+        countries: &store.countries,
         related,
     })
     .into_response()
@@ -194,20 +190,19 @@ pub async fn places_geojson_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<SearchParams>,
 ) -> Json<Value> {
-    Json(
-        state
-            .store
-            .places_geojson(params.country.as_deref(), params.region.as_deref()),
-    )
+    let store = state.store.read().await;
+    Json(store.places_geojson(params.country.as_deref(), params.region.as_deref()))
 }
 
 pub async fn railway_handler(State(state): State<Arc<AppState>>) -> Response {
+    let store = state.store.read().await;
     HtmlTemplate(RailwayTemplate {
-        countries: &state.store.countries,
+        countries: &store.countries,
     })
     .into_response()
 }
 
 pub async fn railway_geojson_handler(State(state): State<Arc<AppState>>) -> Json<Value> {
-    Json(state.store.railway_geojson.clone())
+    let store = state.store.read().await;
+    Json(store.railway_geojson.clone())
 }

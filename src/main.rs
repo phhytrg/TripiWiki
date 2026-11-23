@@ -9,12 +9,14 @@ use axum::{
 };
 use std::path::Path;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use tower_http::{compression::CompressionLayer, services::ServeDir};
 use tracing::{info, warn};
 
 use crate::content::WikiStore;
 use crate::gdrive::{
-    gdrive_id_handler, image_handler, media_status_handler, refresh_media_handler, GDriveClient,
+    gdrive_id_handler, image_handler, media_status_handler, refresh_content_handler,
+    refresh_media_handler, GDriveClient,
 };
 use crate::handlers::{
     index_handler, place_detail_handler, places_geojson_handler, railway_geojson_handler,
@@ -30,26 +32,44 @@ async fn main() {
     load_dotenv();
     tracing_subscriber::fmt::init();
 
-    let store = WikiStore::load_from_dir(Path::new("content"))
+    let gdrive = GDriveClient::from_env();
+
+    let mut store = WikiStore::load_from_dir(Path::new("content"))
         .expect("Failed to load content directory");
+
+    if gdrive.is_places_enabled() {
+        info!("Syncing place guides from Google Drive...");
+        match gdrive.fetch_places().await {
+            Ok((places, _)) if !places.is_empty() => {
+                store = WikiStore::from_places(places, store.railway_geojson);
+            }
+            Ok(_) => {
+                warn!("Google Drive places folder returned 0 valid .md files; keeping local content/places/");
+            }
+            Err(err) => {
+                warn!("Failed to load places from Google Drive (falling back to local): {err}");
+            }
+        }
+    }
+
     info!(
-        "Loaded {} places across {} regions",
+        "Loaded {} places across {} countries and {} regions",
         store.places.len(),
+        store.countries.len(),
         store.regions.len()
     );
 
-    let gdrive = GDriveClient::from_env();
     if gdrive.is_folder_enabled() {
         if let Err(err) = gdrive.refresh_index().await {
             warn!("Initial Google Drive index failed (will retry on demand / fallback to local): {err}");
         }
     } else {
-        info!("Google Drive folder not configured; serving images from local static/images/");
+        info!("Google Drive images folder not configured; serving images from local static/images/");
     }
 
     let weather = WeatherClient::new();
     let state = Arc::new(AppState {
-        store,
+        store: RwLock::new(store),
         gdrive,
         weather,
     });
@@ -66,6 +86,7 @@ async fn main() {
         .route("/api/weather/climate", get(climate_weather_handler))
         .route("/api/media/status", get(media_status_handler))
         .route("/api/media/refresh", post(refresh_media_handler))
+        .route("/api/content/refresh", post(refresh_content_handler))
         .route("/media/gdrive/{file_id}", get(gdrive_id_handler))
         .route("/static/images/{*path}", get(image_handler))
         .nest_service("/static", ServeDir::new("static"))

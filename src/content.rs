@@ -102,19 +102,29 @@ pub struct WikiStore {
 }
 
 impl WikiStore {
-    /// Load all markdown places and GeoJSON railway lines from the `content/` directory.
-    pub fn load_from_dir(content_dir: &Path) -> Result<Self, String> {
-        let places = load_places(&content_dir.join("places"))?;
+    /// Build a WikiStore from a pre-loaded list of places and railway GeoJSON.
+    pub fn from_places(mut places: Vec<Place>, railway_geojson: Value) -> Self {
+        places.sort_by(|a, b| {
+            b.meta
+                .lat
+                .total_cmp(&a.meta.lat)
+                .then_with(|| a.meta.title.to_lowercase().cmp(&b.meta.title.to_lowercase()))
+        });
         let countries = build_country_index(&places);
         let regions = build_region_index(&places);
-        let railway_geojson = load_single_geojson(&content_dir.join("railway/lcr-railway.geojson"))?;
-
-        Ok(Self {
+        Self {
             places,
             countries,
             regions,
             railway_geojson,
-        })
+        }
+    }
+
+    /// Load all markdown places and GeoJSON railway lines from the `content/` directory.
+    pub fn load_from_dir(content_dir: &Path) -> Result<Self, String> {
+        let places = load_places(&content_dir.join("places"))?;
+        let railway_geojson = load_single_geojson(&content_dir.join("railway/lcr-railway.geojson"))?;
+        Ok(Self::from_places(places, railway_geojson))
     }
 
     /// Regions filtered to a specific country (or all regions if `country` is None/"all").
@@ -248,7 +258,7 @@ fn load_places(dir: &Path) -> Result<Vec<Place>, String> {
     Ok(places)
 }
 
-fn parse_markdown_place(raw: &str) -> Result<Place, String> {
+pub fn parse_markdown_place(raw: &str) -> Result<Place, String> {
     let trimmed = raw.trim_start();
     let rest = trimmed
         .strip_prefix("+++")

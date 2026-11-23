@@ -10,12 +10,16 @@ use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
+use tokio::task::JoinSet;
 use tracing::{info, warn};
 
+use crate::content::{parse_markdown_place, Place, WikiStore};
 use crate::handlers::AppState;
 
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
+const GDOC_MIME: &str = "application/vnd.google-apps.document";
 
 #[derive(Debug, Clone)]
 pub struct DriveFile {
@@ -34,6 +38,7 @@ struct DriveIndex {
 pub struct GDriveClient {
     http: reqwest::Client,
     folder_id: Option<String>,
+    places_folder_id: Option<String>,
     api_key: Option<String>,
     index: Arc<RwLock<DriveIndex>>,
 }
@@ -63,10 +68,13 @@ pub struct RefreshResult {
 }
 
 impl GDriveClient {
-    /// Reads `GDRIVE_FOLDER_ID` and `GDRIVE_API_KEY` from environment variables.
-    /// If either is unset, Google Drive folder proxying is disabled and local `static/images/` is used.
+    /// Reads `GDRIVE_FOLDER_ID`, `GDRIVE_PLACES_FOLDER_ID`, and `GDRIVE_API_KEY` from env vars.
     pub fn from_env() -> Self {
         let folder_id = std::env::var("GDRIVE_FOLDER_ID")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let places_folder_id = std::env::var("GDRIVE_PLACES_FOLDER_ID")
             .ok()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
@@ -77,12 +85,14 @@ impl GDriveClient {
 
         let http = reqwest::Client::builder()
             .user_agent("TripiWiki/1.0")
+            .timeout(Duration::from_secs(12))
             .build()
             .expect("Failed to build HTTP client");
 
         Self {
             http,
             folder_id,
+            places_folder_id,
             api_key,
             index: Arc::new(RwLock::new(DriveIndex::default())),
         }
@@ -92,18 +102,20 @@ impl GDriveClient {
         self.folder_id.is_some() && self.api_key.is_some()
     }
 
-    /// Recursively indexes `GDRIVE_FOLDER_ID` and all subfolders via Google Drive API v3.
-    /// Uses `orderBy=modifiedTime asc` so if duplicate filenames exist in the same folder,
-    /// the most recently modified file always wins, and duplicates are recorded for visibility.
-    pub async fn refresh_index(&self) -> Result<(usize, Vec<String>), String> {
-        let (Some(root_folder_id), Some(api_key)) = (&self.folder_id, &self.api_key) else {
-            return Ok((0, Vec::new()));
-        };
+    pub fn is_places_enabled(&self) -> bool {
+        self.places_folder_id.is_some() && self.api_key.is_some()
+    }
 
+    /// Recursively lists files in a Google Drive folder (`orderBy=modifiedTime asc` -> newest wins).
+    async fn list_folder_recursive(
+        &self,
+        root_folder_id: &str,
+        api_key: &str,
+    ) -> Result<(HashMap<String, DriveFile>, Vec<String>), String> {
         let mut files: HashMap<String, DriveFile> = HashMap::new();
         let mut duplicates: Vec<String> = Vec::new();
         let mut queue: VecDeque<(String, String)> = VecDeque::new();
-        queue.push_back((root_folder_id.clone(), String::new()));
+        queue.push_back((root_folder_id.to_string(), String::new()));
 
         while let Some((folder_id, prefix)) = queue.pop_front() {
             let mut page_token: Option<String> = None;
@@ -123,7 +135,7 @@ impl GDriveClient {
                         ),
                         ("orderBy", "modifiedTime asc".to_string()),
                         ("pageSize", "1000".to_string()),
-                        ("key", api_key.clone()),
+                        ("key", api_key.to_string()),
                     ]);
 
                 if let Some(ref token) = page_token {
@@ -186,6 +198,16 @@ impl GDriveClient {
         }
 
         duplicates.sort();
+        Ok((files, duplicates))
+    }
+
+    /// Recursively indexes `GDRIVE_FOLDER_ID` (images) via Google Drive API v3.
+    pub async fn refresh_index(&self) -> Result<(usize, Vec<String>), String> {
+        let (Some(root_folder_id), Some(api_key)) = (&self.folder_id, &self.api_key) else {
+            return Ok((0, Vec::new()));
+        };
+
+        let (files, duplicates) = self.list_folder_recursive(root_folder_id, api_key).await?;
         let count = files.len();
         let dup_clone = duplicates.clone();
         *self.index.write().await = DriveIndex { files, duplicates };
@@ -194,6 +216,74 @@ impl GDriveClient {
             dup_clone.len()
         );
         Ok((count, dup_clone))
+    }
+
+    /// Recursively fetches and parses all Markdown (`.md`) place guides from `GDRIVE_PLACES_FOLDER_ID`
+    /// concurrently (also supports native Google Docs exported as `text/plain`).
+    pub async fn fetch_places(&self) -> Result<(Vec<Place>, Vec<String>), String> {
+        let (Some(places_folder_id), Some(api_key)) = (&self.places_folder_id, &self.api_key) else {
+            return Err("GDRIVE_PLACES_FOLDER_ID or GDRIVE_API_KEY not configured".to_string());
+        };
+
+        let (files, duplicates) = self.list_folder_recursive(places_folder_id, api_key).await?;
+        let mut set = JoinSet::new();
+
+        for (rel_path, file) in files {
+            let is_md = rel_path.to_lowercase().ends_with(".md");
+            let is_gdoc = file.mime_type == GDOC_MIME;
+            if !is_md && !is_gdoc {
+                continue;
+            }
+
+            let url = if is_gdoc {
+                format!(
+                    "https://www.googleapis.com/drive/v3/files/{}/export?mimeType=text/plain&key={api_key}",
+                    file.id
+                )
+            } else {
+                format!(
+                    "https://www.googleapis.com/drive/v3/files/{}?alt=media&key={api_key}",
+                    file.id
+                )
+            };
+
+            let http = self.http.clone();
+            set.spawn(async move {
+                let res = http.get(&url).send().await;
+                (rel_path, res)
+            });
+        }
+
+        let mut places = Vec::new();
+        while let Some(joined) = set.join_next().await {
+            let Ok((rel_path, res)) = joined else {
+                continue;
+            };
+            match res {
+                Ok(resp) if resp.status().is_success() => match resp.text().await {
+                    Ok(raw) => {
+                        let clean = raw.trim_start_matches('\u{feff}');
+                        match parse_markdown_place(clean) {
+                            Ok(place) => places.push(place),
+                            Err(err) => warn!("Skipping invalid Drive place '{rel_path}': {err}"),
+                        }
+                    }
+                    Err(err) => warn!("Failed reading Drive place '{rel_path}': {err}"),
+                },
+                Ok(resp) => warn!(
+                    "Failed downloading Drive place '{rel_path}': HTTP {}",
+                    resp.status()
+                ),
+                Err(err) => warn!("Request failed for Drive place '{rel_path}': {err}"),
+            }
+        }
+
+        info!(
+            "Loaded {} Markdown places from Google Drive ({} duplicates resolved by newest)",
+            places.len(),
+            duplicates.len()
+        );
+        Ok((places, duplicates))
     }
 
     async fn lookup(&self, rel_path: &str) -> Option<DriveFile> {
@@ -343,9 +433,55 @@ pub async fn refresh_media_handler(State(state): State<Arc<AppState>>) -> Respon
     }
 }
 
-/// Inspect Google Drive media status & duplicate warnings (`GET /api/media/status`).
+/// Reload all place Markdown guides from Google Drive (or local fallback) without restarting (`POST /api/content/refresh`).
+pub async fn refresh_content_handler(State(state): State<Arc<AppState>>) -> Response {
+    if !state.gdrive.is_places_enabled() {
+        // Reload from local content/places/ directory
+        match WikiStore::load_from_dir(std::path::Path::new("content")) {
+            Ok(fresh) => {
+                let count = fresh.places.len();
+                *state.store.write().await = fresh;
+                return Json(json!({
+                    "source": "local",
+                    "loaded_places": count,
+                }))
+                .into_response();
+            }
+            Err(err) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": err })),
+                )
+                    .into_response();
+            }
+        }
+    }
+
+    match state.gdrive.fetch_places().await {
+        Ok((places, duplicates)) => {
+            let railway = state.store.read().await.railway_geojson.clone();
+            let fresh = WikiStore::from_places(places, railway);
+            let count = fresh.places.len();
+            let countries = fresh.countries.len();
+            let regions = fresh.regions.len();
+            *state.store.write().await = fresh;
+            Json(json!({
+                "source": "gdrive",
+                "loaded_places": count,
+                "countries": countries,
+                "regions": regions,
+                "duplicates": duplicates,
+            }))
+            .into_response()
+        }
+        Err(err) => (StatusCode::BAD_GATEWAY, Json(json!({ "error": err }))).into_response(),
+    }
+}
+
+/// Inspect Google Drive media & places sync status (`GET /api/media/status`).
 pub async fn media_status_handler(State(state): State<Arc<AppState>>) -> Response {
     let index = state.gdrive.index.read().await;
+    let store = state.store.read().await;
     let mut files: Vec<_> = index
         .files
         .iter()
@@ -367,6 +503,10 @@ pub async fn media_status_handler(State(state): State<Arc<AppState>>) -> Respons
         "enabled": state.gdrive.is_folder_enabled(),
         "indexed_files": files.len(),
         "duplicates": index.duplicates,
+        "places_gdrive_enabled": state.gdrive.is_places_enabled(),
+        "loaded_places": store.places.len(),
+        "countries": store.countries.len(),
+        "regions": store.regions.len(),
         "files": files,
     }))
     .into_response()

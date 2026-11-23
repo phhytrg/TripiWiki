@@ -9,5 +9,7 @@ services:
     envVars:
       - key: GDRIVE_FOLDER_ID
         sync: false
+      - key: GDRIVE_PLACES_FOLDER_ID
+        sync: false
       - key: GDRIVE_API_KEY
         sync: false
