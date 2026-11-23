@@ -304,33 +304,68 @@ impl GDriveClient {
             format!("https://lh3.googleusercontent.com/d/{file_id}=w1400")
         };
 
-        let resp = self
-            .http
-            .get(&url)
-            .send()
-            .await
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        const MAX_RETRIES: u32 = 3;
+        let mut last_err = StatusCode::BAD_GATEWAY;
 
-        if !resp.status().is_success() {
-            return Err(StatusCode::NOT_FOUND);
+        for attempt in 0..=MAX_RETRIES {
+            match self.http.get(&url).send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    let content_type = resp
+                        .headers()
+                        .get(header::CONTENT_TYPE)
+                        .and_then(|v| v.to_str().ok())
+                        .map(str::to_string)
+                        .or_else(|| fallback_mime.map(str::to_string))
+                        .unwrap_or_else(|| "application/octet-stream".to_string());
+
+                    match resp.bytes().await {
+                        Ok(bytes) => {
+                            return Response::builder()
+                                .status(StatusCode::OK)
+                                .header(header::CONTENT_TYPE, content_type)
+                                .header(header::CACHE_CONTROL, "public, max-age=86400")
+                                .body(Body::from(bytes))
+                                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
+                        }
+                        Err(err) => {
+                            warn!(
+                                "Drive image body read failed for {file_id} (attempt {}/{}): {err}",
+                                attempt + 1,
+                                MAX_RETRIES + 1
+                            );
+                            last_err = StatusCode::BAD_GATEWAY;
+                        }
+                    }
+                }
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status == StatusCode::NOT_FOUND {
+                        return Err(StatusCode::NOT_FOUND);
+                    }
+                    warn!(
+                        "Drive image fetch HTTP {status} for {file_id} (attempt {}/{})",
+                        attempt + 1,
+                        MAX_RETRIES + 1
+                    );
+                    last_err = StatusCode::BAD_GATEWAY;
+                }
+                Err(err) => {
+                    warn!(
+                        "Drive image fetch error for {file_id} (attempt {}/{}): {err}",
+                        attempt + 1,
+                        MAX_RETRIES + 1
+                    );
+                    last_err = StatusCode::BAD_GATEWAY;
+                }
+            }
+
+            if attempt < MAX_RETRIES {
+                let delay_ms = 300 * (1_u64 << attempt);
+                tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+            }
         }
 
-        let content_type = resp
-            .headers()
-            .get(header::CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_string)
-            .or_else(|| fallback_mime.map(str::to_string))
-            .unwrap_or_else(|| "application/octet-stream".to_string());
-
-        let bytes = resp.bytes().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-
-        Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, content_type)
-            .header(header::CACHE_CONTROL, "public, max-age=86400")
-            .body(Body::from(bytes))
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        Err(last_err)
     }
 }
 
