@@ -68,8 +68,8 @@
       </div>
       {% endif %}
       <div class="card-body">
-        <div class="card-meta">
-          <span class="region-pill">{{ place.meta.region_name }}</span>
+        <div class="card-title-row">
+          <h3><a href="/places/{{ place.meta.slug }}">{{ place.meta.title }}</a></h3>
           <button
             type="button"
             class="route-toggle-btn"
@@ -79,8 +79,6 @@
             data-lng="{{ place.meta.lng }}"
           >+ Route</button>
         </div>
-        <h3><a href="/places/{{ place.meta.slug }}">{{ place.meta.title }}</a></h3>
-        <p class="card-summary">{{ place.meta.summary }}</p>
         {% let card_tags = place.meta.display_tags() %}
         {% if !card_tags.is_empty() %}
         <div class="card-tags">
@@ -89,6 +87,7 @@
           {% endfor %}
         </div>
         {% endif %}
+        <p class="card-summary">{{ place.meta.summary }}</p>
         {% let climate_items = place.meta.climate_parts() %}
         {% if !climate_items.is_empty() %}
         <div class="card-climate">
