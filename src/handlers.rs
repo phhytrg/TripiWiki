@@ -39,6 +39,8 @@ pub struct RegionSection<'a> {
     pub country_name: String,
     pub region_slug: String,
     pub region_name: String,
+    pub center_lat: f64,
+    pub center_lng: f64,
     pub places: Vec<&'a Place>,
 }
 
@@ -56,16 +58,19 @@ fn group_places_by_region<'a>(places: Vec<&'a Place>) -> Vec<RegionSection<'a>> 
                 country_name: place.meta.country_name.clone(),
                 region_slug: place.meta.region.clone(),
                 region_name: place.meta.region_name.clone(),
+                center_lat: place.meta.lat,
+                center_lng: place.meta.lng,
                 places: vec![place],
             });
         }
     }
+    for sec in &mut sections {
+        let n = sec.places.len() as f64;
+        sec.center_lat = sec.places.iter().map(|p| p.meta.lat).sum::<f64>() / n;
+        sec.center_lng = sec.places.iter().map(|p| p.meta.lng).sum::<f64>() / n;
+    }
     // Sort province sections North -> South by average latitude
-    sections.sort_by(|a, b| {
-        let avg_a = a.places.iter().map(|p| p.meta.lat).sum::<f64>() / a.places.len() as f64;
-        let avg_b = b.places.iter().map(|p| p.meta.lat).sum::<f64>() / b.places.len() as f64;
-        avg_b.total_cmp(&avg_a)
-    });
+    sections.sort_by(|a, b| b.center_lat.total_cmp(&a.center_lat));
     sections
 }
 

@@ -216,18 +216,48 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
-  padding-bottom: 10px;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
   margin-bottom: 16px;
   border-bottom: 2px solid var(--border);
 }
 
+.province-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.province-minimap {
+  width: 132px;
+  height: 78px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #e7e5e4;
+  overflow: hidden;
+  flex-shrink: 0;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.province-minimap:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
 .province-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.province-meta-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .province-header h2 {

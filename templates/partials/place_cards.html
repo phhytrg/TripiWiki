@@ -6,10 +6,23 @@
 {% for section in sections %}
 <section class="province-section" id="region-{{ section.region_slug }}">
   <div class="province-header">
-    <div class="province-title-group">
-      <h2>{{ section.region_name }}</h2>
-      <span class="province-country">{{ section.country_name }}</span>
-      <span class="province-count">{{ section.places.len() }} {% if section.places.len() == 1 %}place{% else %}places{% endif %}</span>
+    <div class="province-header-left">
+      <div
+        class="province-minimap"
+        data-lat="{{ section.center_lat }}"
+        data-lng="{{ section.center_lng }}"
+        data-country="{{ section.country_slug }}"
+        data-region="{{ section.region_slug }}"
+        data-name="{{ section.region_name }}"
+        title="Show {{ section.region_name }} on main map"
+      ></div>
+      <div class="province-title-group">
+        <h2>{{ section.region_name }}</h2>
+        <div class="province-meta-row">
+          <span class="province-country">{{ section.country_name }}</span>
+          <span class="province-count">{{ section.places.len() }} {% if section.places.len() == 1 %}place{% else %}places{% endif %}</span>
+        </div>
+      </div>
     </div>
     <a href="/?country={{ section.country_slug }}&region={{ section.region_slug }}" class="province-link">
       Focus province &rarr;

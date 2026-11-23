@@ -261,7 +261,96 @@
   }
 
   // Keep button active states synced after HTMX search/filter swaps
-  document.body.addEventListener("htmx:afterSwap", syncRouteButtons);
+  document.body.addEventListener("htmx:afterSwap", () => {
+    syncRouteButtons();
+    initProvinceMiniMaps();
+  });
+
+  // --- Province Section Locator Mini-Maps (lazy-loaded via IntersectionObserver) ---
+  const countryCenters = {
+    laos: { lat: 18.2, lng: 103.8, zoom: 4 },
+    malaysia: { lat: 4.0, lng: 114.2, zoom: 4 },
+  };
+
+  function mountMiniMap(el) {
+    if (el.dataset.mapInit === "1") return;
+    el.dataset.mapInit = "1";
+
+    const lat = parseFloat(el.dataset.lat);
+    const lng = parseFloat(el.dataset.lng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+    const ctx = countryCenters[el.dataset.country] || { lat, lng, zoom: 5 };
+
+    const mini = L.map(el, {
+      center: [ctx.lat, ctx.lng],
+      zoom: ctx.zoom,
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+      touchZoom: false,
+    });
+
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 12 }
+    ).addTo(mini);
+
+    // Outer halo + crisp location dot showing where this province sits in the country
+    L.circleMarker([lat, lng], {
+      radius: 11,
+      color: "#0f766e",
+      weight: 1.5,
+      fillColor: "#14b8a6",
+      fillOpacity: 0.28,
+      interactive: false,
+    }).addTo(mini);
+
+    L.circleMarker([lat, lng], {
+      radius: 4.5,
+      color: "#ffffff",
+      weight: 1.5,
+      fillColor: "#ea580c",
+      fillOpacity: 1,
+      interactive: false,
+    }).addTo(mini);
+
+    el.addEventListener("click", () => {
+      map.panTo([lat, lng], { animate: true, duration: 0.5 });
+      mapEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
+
+  let miniMapObserver = null;
+  function initProvinceMiniMaps() {
+    const els = document.querySelectorAll(".province-minimap:not([data-map-init='1'])");
+    if (!els.length) return;
+
+    if ("IntersectionObserver" in window) {
+      if (!miniMapObserver) {
+        miniMapObserver = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                mountMiniMap(entry.target);
+                miniMapObserver.unobserve(entry.target);
+              }
+            });
+          },
+          { rootMargin: "160px" }
+        );
+      }
+      els.forEach((el) => miniMapObserver.observe(el));
+    } else {
+      els.forEach(mountMiniMap);
+    }
+  }
+
+  initProvinceMiniMaps();
 
   // First tap/click on a card -> focus it on the map;
   // double-click (or second tap on touch) -> open guide page
