@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}TripiWiki — Multi-Country Travel Guide & Interactive Map{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
+  <link rel="apple-touch-icon" href="/static/logo.svg" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="/static/styles.css" />
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
@@ -15,8 +17,8 @@
     <div class="container header-inner">
       <div class="header-top">
         <a href="/" class="brand">
-          <span class="brand-badge">TW</span>
-          <span class="brand-name">tripiwiki</span>
+          <img src="/static/logo.svg" alt="TripiWiki" class="brand-logo" />
+          <span class="brand-name">TripiWiki</span>
         </a>
         <div class="header-mobile-actions">
           <a href="/railway" class="nav-railway mobile-rail-btn">🚆 Railway</a>
