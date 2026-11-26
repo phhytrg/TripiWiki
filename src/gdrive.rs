@@ -5,12 +5,14 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use base64::Engine as _;
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -19,6 +21,8 @@ use crate::handlers::AppState;
 
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
 const GDOC_MIME: &str = "application/vnd.google-apps.document";
+const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.readonly";
+const DEFAULT_TOKEN_URI: &str = "https://oauth2.googleapis.com/token";
 
 /// True only during local development (never in `--release` or on Render).
 fn is_local_debug() -> bool {
@@ -31,6 +35,44 @@ fn mask_secret(val: &Option<String>) -> String {
         Some(s) => format!("*** (len={})", s.len()),
         None => "<unset>".to_string(),
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ServiceAccountKey {
+    client_email: String,
+    private_key: String,
+    #[serde(default = "default_token_uri")]
+    token_uri: String,
+}
+
+fn default_token_uri() -> String {
+    DEFAULT_TOKEN_URI.to_string()
+}
+
+#[derive(Serialize)]
+struct JwtClaims<'a> {
+    iss: &'a str,
+    scope: &'a str,
+    aud: &'a str,
+    iat: u64,
+    exp: u64,
+}
+
+#[derive(Deserialize)]
+struct OAuthTokenResponse {
+    access_token: String,
+    #[serde(default = "default_expires_in")]
+    expires_in: u64,
+}
+
+fn default_expires_in() -> u64 {
+    3600
+}
+
+#[derive(Debug, Clone)]
+struct CachedToken {
+    access_token: String,
+    expires_at: Instant,
 }
 
 #[derive(Debug, Clone)]
@@ -47,11 +89,19 @@ struct DriveIndex {
 }
 
 #[derive(Debug, Clone)]
+enum DriveAuth {
+    Bearer(String),
+    ApiKey(String),
+}
+
+#[derive(Debug, Clone)]
 pub struct GDriveClient {
     http: reqwest::Client,
     folder_id: Option<String>,
     places_folder_id: Option<String>,
     api_key: Option<String>,
+    service_account: Option<ServiceAccountKey>,
+    token_cache: Arc<RwLock<Option<CachedToken>>>,
     index: Arc<RwLock<DriveIndex>>,
 }
 
@@ -79,8 +129,53 @@ pub struct RefreshResult {
     pub duplicates: Vec<String>,
 }
 
+fn load_service_account_from_env() -> Option<ServiceAccountKey> {
+    // 1. Try GDRIVE_SERVICE_ACCOUNT_JSON (raw JSON or base64-encoded JSON — ideal for Render)
+    if let Ok(raw) = std::env::var("GDRIVE_SERVICE_ACCOUNT_JSON") {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            if let Ok(key) = serde_json::from_str::<ServiceAccountKey>(trimmed) {
+                return Some(key);
+            }
+            if let Ok(decoded_bytes) = base64::engine::general_purpose::STANDARD.decode(trimmed) {
+                if let Ok(decoded_str) = String::from_utf8(decoded_bytes) {
+                    if let Ok(key) = serde_json::from_str::<ServiceAccountKey>(&decoded_str) {
+                        return Some(key);
+                    }
+                }
+            }
+            warn!("GDRIVE_SERVICE_ACCOUNT_JSON is set but could not be parsed as valid Service Account JSON");
+        }
+    }
+
+    // 2. Try GDRIVE_SERVICE_ACCOUNT_FILE (or default local path credentials/service-account.json)
+    let file_path = std::env::var("GDRIVE_SERVICE_ACCOUNT_FILE")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "credentials/service-account.json".to_string());
+
+    if std::path::Path::new(&file_path).exists() {
+        match std::fs::read_to_string(&file_path) {
+            Ok(contents) => match serde_json::from_str::<ServiceAccountKey>(&contents) {
+                Ok(key) => return Some(key),
+                Err(err) => {
+                    warn!("Failed to parse Service Account file '{file_path}': {err}");
+                }
+            },
+            Err(err) => {
+                warn!("Failed to read Service Account file '{file_path}': {err}");
+            }
+        }
+    }
+
+    None
+}
+
 impl GDriveClient {
-    /// Reads `GDRIVE_FOLDER_ID`, `GDRIVE_PLACES_FOLDER_ID`, and `GDRIVE_API_KEY` from env vars.
+    /// Reads Google Drive config from environment variables.
+    /// Prefers Service Account OAuth (`GDRIVE_SERVICE_ACCOUNT_JSON` / `GDRIVE_SERVICE_ACCOUNT_FILE`),
+    /// falling back to `GDRIVE_API_KEY` if no Service Account is configured.
     pub fn from_env() -> Self {
         let folder_id = std::env::var("GDRIVE_FOLDER_ID")
             .ok()
@@ -94,6 +189,7 @@ impl GDriveClient {
             .ok()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
+        let service_account = load_service_account_from_env();
 
         let http = reqwest::Client::builder()
             .user_agent("TripiWiki/1.0")
@@ -102,11 +198,18 @@ impl GDriveClient {
             .expect("Failed to build HTTP client");
 
         if is_local_debug() {
+            let auth_mode = if let Some(ref sa) = service_account {
+                format!("ServiceAccount({})", sa.client_email)
+            } else if api_key.is_some() {
+                format!("ApiKey({})", mask_secret(&api_key))
+            } else {
+                "<none>".to_string()
+            };
             info!(
-                "[GDrive local debug] config: GDRIVE_FOLDER_ID={}, GDRIVE_PLACES_FOLDER_ID={}, GDRIVE_API_KEY={}",
+                "[GDrive local debug] config: auth={}, GDRIVE_FOLDER_ID={}, GDRIVE_PLACES_FOLDER_ID={}",
+                auth_mode,
                 folder_id.as_deref().unwrap_or("<unset>"),
                 places_folder_id.as_deref().unwrap_or("<unset>"),
-                mask_secret(&api_key),
             );
         }
 
@@ -115,24 +218,125 @@ impl GDriveClient {
             folder_id,
             places_folder_id,
             api_key,
+            service_account,
+            token_cache: Arc::new(RwLock::new(None)),
             index: Arc::new(RwLock::new(DriveIndex::default())),
         }
     }
 
+    fn has_auth(&self) -> bool {
+        self.service_account.is_some() || self.api_key.is_some()
+    }
+
+    pub fn auth_mode(&self) -> &'static str {
+        if self.service_account.is_some() {
+            "service_account"
+        } else if self.api_key.is_some() {
+            "api_key"
+        } else {
+            "none"
+        }
+    }
+
     pub fn is_folder_enabled(&self) -> bool {
-        self.folder_id.is_some() && self.api_key.is_some()
+        self.folder_id.is_some() && self.has_auth()
     }
 
     pub fn is_places_enabled(&self) -> bool {
-        self.places_folder_id.is_some() && self.api_key.is_some()
+        self.places_folder_id.is_some() && self.has_auth()
+    }
+
+    /// Obtain a valid OAuth 2.0 Bearer token (cached for ~55 min) or fallback to API key.
+    async fn resolve_auth(&self) -> Result<DriveAuth, String> {
+        if let Some(ref sa) = self.service_account {
+            // 1. Check cached token
+            {
+                let guard = self.token_cache.read().await;
+                if let Some(ref cached) = *guard {
+                    if Instant::now() + Duration::from_secs(120) < cached.expires_at {
+                        return Ok(DriveAuth::Bearer(cached.access_token.clone()));
+                    }
+                }
+            }
+
+            // 2. Mint a signed RS256 JWT and exchange for an access_token
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|e| format!("System clock error: {e}"))?
+                .as_secs();
+
+            let claims = JwtClaims {
+                iss: &sa.client_email,
+                scope: DRIVE_SCOPE,
+                aud: &sa.token_uri,
+                iat: now,
+                exp: now + 3600,
+            };
+
+            let encoding_key = EncodingKey::from_rsa_pem(sa.private_key.as_bytes())
+                .map_err(|e| format!("Invalid Service Account RSA private_key: {e}"))?;
+
+            let jwt = encode(&Header::new(Algorithm::RS256), &claims, &encoding_key)
+                .map_err(|e| format!("Failed to sign Service Account JWT: {e}"))?;
+
+            let resp = self
+                .http
+                .post(&sa.token_uri)
+                .form(&[
+                    ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+                    ("assertion", jwt.as_str()),
+                ])
+                .send()
+                .await
+                .map_err(|e| format!("Google OAuth token request failed: {e}"))?;
+
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                return Err(format!("Google OAuth token error {status}: {body}"));
+            }
+
+            let tok: OAuthTokenResponse = resp
+                .json()
+                .await
+                .map_err(|e| format!("Failed to parse OAuth token response: {e}"))?;
+
+            let expires_at = Instant::now() + Duration::from_secs(tok.expires_in);
+            *self.token_cache.write().await = Some(CachedToken {
+                access_token: tok.access_token.clone(),
+                expires_at,
+            });
+
+            if is_local_debug() {
+                info!(
+                    "[GDrive local debug] minted fresh OAuth access token for {} (expires in {}s)",
+                    sa.client_email, tok.expires_in
+                );
+            }
+
+            return Ok(DriveAuth::Bearer(tok.access_token));
+        }
+
+        if let Some(ref key) = self.api_key {
+            return Ok(DriveAuth::ApiKey(key.clone()));
+        }
+
+        Err("No Google Drive credentials configured".to_string())
+    }
+
+    fn apply_auth(&self, req: reqwest::RequestBuilder, auth: &DriveAuth) -> reqwest::RequestBuilder {
+        match auth {
+            DriveAuth::Bearer(token) => req.bearer_auth(token),
+            DriveAuth::ApiKey(key) => req.query(&[("key", key.as_str())]),
+        }
     }
 
     /// Recursively lists files in a Google Drive folder (`orderBy=modifiedTime asc` -> newest wins).
     async fn list_folder_recursive(
         &self,
         root_folder_id: &str,
-        api_key: &str,
     ) -> Result<(HashMap<String, DriveFile>, Vec<String>), String> {
+        let auth = self.resolve_auth().await?;
         let mut files: HashMap<String, DriveFile> = HashMap::new();
         let mut duplicates: Vec<String> = Vec::new();
         let mut queue: VecDeque<(String, String)> = VecDeque::new();
@@ -156,8 +360,8 @@ impl GDriveClient {
                         ),
                         ("orderBy", "modifiedTime asc".to_string()),
                         ("pageSize", "1000".to_string()),
-                        ("key", api_key.to_string()),
                     ]);
+                req = self.apply_auth(req, &auth);
 
                 if let Some(ref token) = page_token {
                     req = req.query(&[("pageToken", token.as_str())]);
@@ -208,13 +412,6 @@ impl GDriveClient {
                         format!("{prefix}/{}", f.name)
                     };
 
-                    if is_local_debug() {
-                        info!(
-                            "[GDrive local debug]   item: path='{}' mime='{}' id='{}'",
-                            rel_path, f.mime_type, f.id
-                        );
-                    }
-
                     if f.mime_type == FOLDER_MIME {
                         queue.push_back((f.id, rel_path));
                         continue;
@@ -253,11 +450,14 @@ impl GDriveClient {
 
     /// Recursively indexes `GDRIVE_FOLDER_ID` (images) via Google Drive API v3.
     pub async fn refresh_index(&self) -> Result<(usize, Vec<String>), String> {
-        let (Some(root_folder_id), Some(api_key)) = (&self.folder_id, &self.api_key) else {
+        let Some(root_folder_id) = self.folder_id.as_deref() else {
             return Ok((0, Vec::new()));
         };
+        if !self.has_auth() {
+            return Ok((0, Vec::new()));
+        }
 
-        let (files, duplicates) = self.list_folder_recursive(root_folder_id, api_key).await?;
+        let (files, duplicates) = self.list_folder_recursive(root_folder_id).await?;
         let count = files.len();
         let dup_clone = duplicates.clone();
         *self.index.write().await = DriveIndex { files, duplicates };
@@ -268,14 +468,13 @@ impl GDriveClient {
         Ok((count, dup_clone))
     }
 
-    /// Recursively fetches and parses all Markdown (`.md`) place guides from `GDRIVE_PLACES_FOLDER_ID`
-    /// with polite sequential pacing (avoids Google Drive's automated-query burst 403 block).
+    /// Recursively fetches and parses all Markdown (`.md`) place guides from `GDRIVE_PLACES_FOLDER_ID`.
     pub async fn fetch_places(&self) -> Result<(Vec<Place>, Vec<String>), String> {
-        let (Some(places_folder_id), Some(api_key)) = (&self.places_folder_id, &self.api_key) else {
-            return Err("GDRIVE_PLACES_FOLDER_ID or GDRIVE_API_KEY not configured".to_string());
+        let Some(places_folder_id) = self.places_folder_id.as_deref() else {
+            return Err("GDRIVE_PLACES_FOLDER_ID not configured".to_string());
         };
-
-        let (files, duplicates) = self.list_folder_recursive(places_folder_id, api_key).await?;
+        let auth = self.resolve_auth().await?;
+        let (files, duplicates) = self.list_folder_recursive(places_folder_id).await?;
         let mut places = Vec::new();
         let mut downloaded = 0usize;
 
@@ -283,34 +482,27 @@ impl GDriveClient {
             let is_md = rel_path.to_lowercase().ends_with(".md");
             let is_gdoc = file.mime_type == GDOC_MIME;
             if !is_md && !is_gdoc {
-                if is_local_debug() {
-                    info!(
-                        "[GDrive local debug] skipping non-markdown file '{}' (mime='{}')",
-                        rel_path, file.mime_type
-                    );
-                }
                 continue;
             }
 
-            if downloaded > 0 {
-                // Polite pacing so Google Drive does not flag a burst of simultaneous downloads
+            // Only pace when using unauthenticated API key; Service Account OAuth handles normal throughput cleanly
+            if matches!(auth, DriveAuth::ApiKey(_)) && downloaded > 0 {
                 tokio::time::sleep(Duration::from_millis(250)).await;
             }
             downloaded += 1;
 
-            let url = if is_gdoc {
-                format!(
-                    "https://www.googleapis.com/drive/v3/files/{}/export?mimeType=text/plain&key={api_key}",
+            let req = if is_gdoc {
+                let url = format!(
+                    "https://www.googleapis.com/drive/v3/files/{}/export",
                     file.id
-                )
+                );
+                self.apply_auth(self.http.get(&url).query(&[("mimeType", "text/plain")]), &auth)
             } else {
-                format!(
-                    "https://www.googleapis.com/drive/v3/files/{}?alt=media&key={api_key}",
-                    file.id
-                )
+                let url = format!("https://www.googleapis.com/drive/v3/files/{}", file.id);
+                self.apply_auth(self.http.get(&url).query(&[("alt", "media")]), &auth)
             };
 
-            match self.http.get(&url).send().await {
+            match req.send().await {
                 Ok(resp) if resp.status().is_success() => match resp.text().await {
                     Ok(raw) => {
                         let clean = raw.trim_start_matches('\u{feff}');
@@ -336,9 +528,7 @@ impl GDriveClient {
                     } else {
                         String::new()
                     };
-                    warn!(
-                        "Failed downloading Drive place '{rel_path}': HTTP {status} {err_body}"
-                    );
+                    warn!("Failed downloading Drive place '{rel_path}': HTTP {status} {err_body}");
                 }
                 Err(err) => warn!("Request failed for Drive place '{rel_path}': {err}"),
             }
@@ -361,77 +551,60 @@ impl GDriveClient {
         file_id: &str,
         fallback_mime: Option<&str>,
     ) -> Result<Response, StatusCode> {
-        let url = if let Some(ref api_key) = self.api_key {
-            format!(
-                "https://www.googleapis.com/drive/v3/files/{file_id}?alt=media&key={api_key}"
-            )
-        } else {
-            // Works without API key for public Drive files ("Anyone with the link -> Viewer")
-            format!("https://lh3.googleusercontent.com/d/{file_id}=w1400")
+        let req = match self.resolve_auth().await {
+            Ok(auth) => {
+                let url = format!("https://www.googleapis.com/drive/v3/files/{file_id}");
+                self.apply_auth(self.http.get(&url).query(&[("alt", "media")]), &auth)
+            }
+            Err(_) => {
+                // Public Drive thumbnail fallback when no credentials are configured
+                let url = format!("https://lh3.googleusercontent.com/d/{file_id}=w1400");
+                self.http.get(&url)
+            }
         };
 
-        const MAX_RETRIES: u32 = 3;
-        let mut last_err = StatusCode::BAD_GATEWAY;
-
-        for attempt in 0..=MAX_RETRIES {
-            match self.http.get(&url).send().await {
-                Ok(resp) if resp.status().is_success() => {
-                    let content_type = resp
-                        .headers()
-                        .get(header::CONTENT_TYPE)
-                        .and_then(|v| v.to_str().ok())
-                        .map(str::to_string)
-                        .or_else(|| fallback_mime.map(str::to_string))
-                        .unwrap_or_else(|| "application/octet-stream".to_string());
-
-                    match resp.bytes().await {
-                        Ok(bytes) => {
-                            return Response::builder()
-                                .status(StatusCode::OK)
-                                .header(header::CONTENT_TYPE, content_type)
-                                .header(header::CACHE_CONTROL, "public, max-age=86400")
-                                .body(Body::from(bytes))
-                                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
-                        }
-                        Err(err) => {
-                            warn!(
-                                "Drive image body read failed for {file_id} (attempt {}/{}): {err}",
-                                attempt + 1,
-                                MAX_RETRIES + 1
-                            );
-                            last_err = StatusCode::BAD_GATEWAY;
-                        }
-                    }
+        let resp = req
+            .timeout(Duration::from_secs(8))
+            .send()
+            .await
+            .map_err(|err| {
+                warn!("Drive image fetch timeout/error for {file_id}: {err}");
+                if err.is_timeout() {
+                    StatusCode::GATEWAY_TIMEOUT
+                } else {
+                    StatusCode::BAD_GATEWAY
                 }
-                Ok(resp) => {
-                    let status = resp.status();
-                    if status == StatusCode::NOT_FOUND {
-                        return Err(StatusCode::NOT_FOUND);
-                    }
-                    warn!(
-                        "Drive image fetch HTTP {status} for {file_id} (attempt {}/{})",
-                        attempt + 1,
-                        MAX_RETRIES + 1
-                    );
-                    last_err = StatusCode::BAD_GATEWAY;
-                }
-                Err(err) => {
-                    warn!(
-                        "Drive image fetch error for {file_id} (attempt {}/{}): {err}",
-                        attempt + 1,
-                        MAX_RETRIES + 1
-                    );
-                    last_err = StatusCode::BAD_GATEWAY;
-                }
-            }
+            })?;
 
-            if attempt < MAX_RETRIES {
-                let delay_ms = 300 * (1_u64 << attempt);
-                tokio::time::sleep(Duration::from_millis(delay_ms)).await;
-            }
+        if !resp.status().is_success() {
+            let status = resp.status();
+            warn!("Drive image fetch HTTP {status} for {file_id}");
+            return Err(if status == StatusCode::NOT_FOUND {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::BAD_GATEWAY
+            });
         }
 
-        Err(last_err)
+        let content_type = resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string)
+            .or_else(|| fallback_mime.map(str::to_string))
+            .unwrap_or_else(|| "application/octet-stream".to_string());
+
+        let bytes = resp.bytes().await.map_err(|err| {
+            warn!("Drive image body read failed for {file_id}: {err}");
+            StatusCode::BAD_GATEWAY
+        })?;
+
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, content_type)
+            .header(header::CACHE_CONTROL, "public, max-age=86400")
+            .body(Body::from(bytes))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
     }
 }
 
@@ -494,7 +667,6 @@ pub async fn image_handler(
 }
 
 /// Direct Google Drive file proxy by File ID: `/media/gdrive/{file_id}`.
-/// Globally unique (zero conflicts) and works even without `GDRIVE_API_KEY`.
 pub async fn gdrive_id_handler(
     State(state): State<Arc<AppState>>,
     Path(file_id): Path<String>,
@@ -537,7 +709,6 @@ pub async fn refresh_media_handler(State(state): State<Arc<AppState>>) -> Respon
 /// Reload all place Markdown guides from Google Drive (or local fallback) without restarting (`POST /api/content/refresh`).
 pub async fn refresh_content_handler(State(state): State<Arc<AppState>>) -> Response {
     if !state.gdrive.is_places_enabled() {
-        // Reload from local content/places/ directory
         match WikiStore::load_from_dir(std::path::Path::new("content")) {
             Ok(fresh) => {
                 let count = fresh.places.len();
@@ -601,6 +772,7 @@ pub async fn media_status_handler(State(state): State<Arc<AppState>>) -> Respons
     });
 
     Json(json!({
+        "auth_mode": state.gdrive.auth_mode(),
         "enabled": state.gdrive.is_folder_enabled(),
         "indexed_files": files.len(),
         "duplicates": index.duplicates,

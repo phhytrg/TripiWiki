@@ -398,7 +398,13 @@
       return;
     }
 
-    if (event.target.closest(".carousel-dot") || event.target.closest(".card-tag")) return;
+    if (
+      event.target.closest(".carousel-dot") ||
+      event.target.closest(".card-tag") ||
+      event.target.closest(".img-retry-btn")
+    ) {
+      return;
+    }
     const card = event.target.closest(".place-card");
     if (!card) return;
     if (event.metaKey || event.ctrlKey) return;
@@ -440,7 +446,8 @@
     if (
       event.target.closest(".carousel-dot") ||
       event.target.closest(".card-tag") ||
-      event.target.closest(".route-toggle-btn")
+      event.target.closest(".route-toggle-btn") ||
+      event.target.closest(".img-retry-btn")
     ) {
       return;
     }

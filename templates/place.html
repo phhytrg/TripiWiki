@@ -26,6 +26,10 @@
     {% if !gallery.is_empty() %}
     <div class="place-hero-wrap card-carousel is-loading">
       <div class="img-spinner" aria-hidden="true"><span></span></div>
+      <div class="img-error-overlay">
+        <img src="/static/img-fallback.svg" alt="Failed to load image from Google Drive" class="img-fallback-bg" />
+        <button type="button" class="img-retry-btn">↻ Reload photo</button>
+      </div>
       {% for img in gallery.iter() %}
       <img
         src="{{ img }}"

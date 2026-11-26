@@ -1,67 +1,89 @@
-const MAX_IMG_RETRIES = 3;
+const IMG_LOAD_TIMEOUT_MS = 10000;
+const imageTimers = new WeakMap();
 
-function attachImageRetry(img, carousel) {
-  if (img.dataset.retryBound === "1") return;
-  img.dataset.retryBound = "1";
+function clearImageTimer(img) {
+  const timer = imageTimers.get(img);
+  if (timer) {
+    clearTimeout(timer);
+    imageTimers.delete(img);
+  }
+}
+
+function startImageTimer(img, carousel) {
+  clearImageTimer(img);
+  const timer = setTimeout(() => {
+    imageTimers.delete(img);
+    if (img.complete && img.naturalWidth > 0) return;
+    img.dataset.failed = "1";
+    img.classList.remove("is-loaded");
+    // Cancel pending stalled image request
+    img.removeAttribute("src");
+    if (carousel.querySelector(".carousel-slide.active") === img) {
+      carousel.classList.remove("is-loading");
+      carousel.classList.add("has-error");
+    }
+  }, IMG_LOAD_TIMEOUT_MS);
+  imageTimers.set(img, timer);
+}
+
+function bindImageListeners(img, carousel) {
+  if (img.dataset.imgBound === "1") return;
+  img.dataset.imgBound = "1";
   if (!img.dataset.origSrc) {
     img.dataset.origSrc = img.getAttribute("src") || "";
   }
 
   img.addEventListener("load", () => {
-    if (carousel.querySelector(".carousel-slide.active") === img) {
-      carousel.classList.remove("is-loading");
-    }
+    clearImageTimer(img);
+    img.dataset.failed = "0";
     img.classList.add("is-loaded");
+    if (carousel.querySelector(".carousel-slide.active") === img) {
+      carousel.classList.remove("is-loading", "has-error");
+    }
   });
 
   img.addEventListener("error", () => {
-    const attempt = Number(img.dataset.retryCount || "0");
-    const orig = img.dataset.origSrc;
-    if (attempt < MAX_IMG_RETRIES && orig) {
-      const nextAttempt = attempt + 1;
-      img.dataset.retryCount = String(nextAttempt);
-      const delayMs = 500 * Math.pow(2, attempt);
-      const sep = orig.includes("?") ? "&" : "?";
-      if (carousel.querySelector(".carousel-slide.active") === img) {
-        carousel.classList.add("is-loading");
-      }
-      setTimeout(() => {
-        img.src = `${orig}${sep}retry=${nextAttempt}&t=${Date.now()}`;
-      }, delayMs);
-    } else {
-      if (carousel.querySelector(".carousel-slide.active") === img) {
-        carousel.classList.remove("is-loading");
-      }
-      img.classList.add("is-loaded");
+    clearImageTimer(img);
+    img.dataset.failed = "1";
+    img.classList.remove("is-loaded");
+    if (carousel.querySelector(".carousel-slide.active") === img) {
+      carousel.classList.remove("is-loading");
+      carousel.classList.add("has-error");
     }
   });
 }
 
 function syncCarouselLoading(carousel) {
   carousel.querySelectorAll(".carousel-slide").forEach((img) => {
-    attachImageRetry(img, carousel);
+    bindImageListeners(img, carousel);
   });
 
   const activeImg = carousel.querySelector(".carousel-slide.active");
   if (!activeImg) {
-    carousel.classList.remove("is-loading");
+    carousel.classList.remove("is-loading", "has-error");
     return;
   }
 
   if (activeImg.complete && activeImg.naturalWidth > 0) {
-    carousel.classList.remove("is-loading");
+    clearImageTimer(activeImg);
+    activeImg.dataset.failed = "0";
+    carousel.classList.remove("is-loading", "has-error");
     activeImg.classList.add("is-loaded");
     return;
   }
 
-  // If the image already failed before JS bound listeners, trigger retry immediately
-  if (activeImg.complete && activeImg.naturalWidth === 0) {
-    activeImg.dispatchEvent(new Event("error"));
+  if (activeImg.dataset.failed === "1" || (activeImg.complete && activeImg.naturalWidth === 0)) {
+    clearImageTimer(activeImg);
+    activeImg.dataset.failed = "1";
+    carousel.classList.remove("is-loading");
+    carousel.classList.add("has-error");
     return;
   }
 
+  carousel.classList.remove("has-error");
   carousel.classList.add("is-loading");
   activeImg.classList.remove("is-loaded");
+  startImageTimer(activeImg, carousel);
 }
 
 function initAllCarousels(root = document) {
@@ -93,6 +115,30 @@ document.addEventListener("htmx:afterSwap", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  // Manual refetch button when an image fails or times out
+  const retryBtn = event.target.closest(".img-retry-btn");
+  if (retryBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const carousel = retryBtn.closest(".card-carousel");
+    const activeImg = carousel?.querySelector(".carousel-slide.active");
+    if (!carousel || !activeImg) return;
+
+    const orig = activeImg.dataset.origSrc || activeImg.getAttribute("src") || "";
+    if (!orig) return;
+
+    activeImg.dataset.failed = "0";
+    carousel.classList.remove("has-error");
+    carousel.classList.add("is-loading");
+    activeImg.classList.remove("is-loaded");
+    startImageTimer(activeImg, carousel);
+
+    const sep = orig.includes("?") ? "&" : "?";
+    activeImg.src = `${orig}${sep}t=${Date.now()}`;
+    return;
+  }
+
   const dot = event.target.closest(".carousel-dot");
   if (!dot) return;
 

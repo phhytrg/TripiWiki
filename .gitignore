@@ -2,3 +2,6 @@
 .DS_Store
 .env
 .env.local
+credentials/
+*service-account*.json
+*.sa.json
