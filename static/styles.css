@@ -161,7 +161,7 @@ a:hover {
 }
 
 #laos-map {
-  height: 380px;
+  height: 440px;
   width: 100%;
   border-radius: var(--radius);
   border: 1px solid var(--border);
@@ -529,9 +529,31 @@ a:hover {
   line-height: 1.3;
 }
 
-.card-title-row .route-toggle-btn {
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
   margin-top: 2px;
+}
+
+.locate-map-btn {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.locate-map-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
 }
 
 .place-card:hover {
@@ -839,13 +861,37 @@ a:hover {
   text-align: center;
 }
 
-.map-popup h4 {
-  margin: 4px 0;
+.map-popup {
+  width: 248px;
 }
 
-.map-popup p {
+.popup-img-wrap {
+  display: block;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #e7e5e4;
+}
+
+.popup-img {
+  width: 100%;
+  height: 92px;
+  object-fit: cover;
+  display: block;
+}
+
+.map-popup h4 {
+  margin: 4px 0;
+  font-size: 0.94rem;
+  line-height: 1.28;
+}
+
+.map-popup p,
+.popup-summary {
   margin: 4px 0 8px;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.42;
+  color: var(--muted);
 }
 
 .popup-region {
@@ -1394,7 +1440,7 @@ a:hover {
 
   #laos-map,
   #railway-map {
-    height: 300px;
+    height: 360px;
   }
 
   .controls-bar {

@@ -246,6 +246,7 @@ impl WikiStore {
                         "region_name": p.meta.region_name,
                         "tags": p.meta.tags,
                         "elevation_m": p.meta.elevation_m,
+                        "image": p.meta.gallery().first().copied(),
                         "summary": p.meta.summary,
                         "url": format!("/places/{}", p.meta.slug)
                     }

@@ -74,14 +74,24 @@
       <div class="card-body">
         <div class="card-title-row">
           <h3><a href="/places/{{ place.meta.slug }}">{{ place.meta.title }}</a></h3>
-          <button
-            type="button"
-            class="route-toggle-btn"
-            data-slug="{{ place.meta.slug }}"
-            data-title="{{ place.meta.title }}"
-            data-lat="{{ place.meta.lat }}"
-            data-lng="{{ place.meta.lng }}"
-          >+ Route</button>
+          <div class="card-actions">
+            <button
+              type="button"
+              class="locate-map-btn"
+              data-slug="{{ place.meta.slug }}"
+              data-lat="{{ place.meta.lat }}"
+              data-lng="{{ place.meta.lng }}"
+              title="Locate on map"
+            >📍 Map</button>
+            <button
+              type="button"
+              class="route-toggle-btn"
+              data-slug="{{ place.meta.slug }}"
+              data-title="{{ place.meta.title }}"
+              data-lat="{{ place.meta.lat }}"
+              data-lng="{{ place.meta.lng }}"
+            >+ Route</button>
+          </div>
         </div>
         {% let card_tags = place.meta.display_tags() %}
         {% if !card_tags.is_empty() %}

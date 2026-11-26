@@ -113,12 +113,17 @@
         const p = feature.properties;
         const [lng, lat] = feature.geometry.coordinates;
         const elevBadge = p.elevation_m ? ` · ⛰️ ${p.elevation_m} m` : "";
+        const imgHtml = p.image
+          ? `<a href="${p.url}" class="popup-img-wrap"><img src="${p.image}" alt="${p.title.replace(/"/g, "&quot;")}" class="popup-img" loading="lazy" /></a>`
+          : "";
         markersBySlug.set(p.slug, marker);
-        marker.bindPopup(`
+        marker.bindPopup(
+          `
           <div class="map-popup">
+            ${imgHtml}
             <span class="popup-region">${p.country_name} · ${p.region_name}${elevBadge}</span>
             <h4><a href="${p.url}">${p.title}</a></h4>
-            <p>${p.summary}</p>
+            <p class="popup-summary">${p.summary}</p>
             <div class="popup-actions">
               <a href="${p.url}" class="popup-link">Read guide &rarr;</a>
               <button
@@ -131,7 +136,13 @@
               >+ Route</button>
             </div>
           </div>
-        `);
+        `,
+          {
+            maxWidth: 270,
+            autoPanPaddingTopLeft: L.point(16, 16),
+            autoPanPaddingBottomRight: L.point(16, 16),
+          }
+        );
       },
     }).addTo(placesGroup);
 
@@ -367,12 +378,9 @@
 
   initProvinceMiniMaps();
 
-  // First tap/click on a card -> focus it on the map;
-  // double-click (or second tap on touch) -> open guide page
-  const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
-
+  // Clicking "📍 Map" locates the place on the map; clicking the card opens its detail page
   document.addEventListener("click", (event) => {
-    // Handle "+ Route" button clicks (on cards or inside map popups)
+    // 1. Handle "+ Route" button clicks (on cards or inside map popups)
     const routeBtn = event.target.closest(".route-toggle-btn");
     if (routeBtn) {
       event.preventDefault();
@@ -386,7 +394,44 @@
       return;
     }
 
-    // Handle removing a stop chip
+    // 2. Handle "📍 Map" locate button on cards
+    const locateBtn = event.target.closest(".locate-map-btn");
+    if (locateBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const card = locateBtn.closest(".place-card");
+      document
+        .querySelectorAll(".place-card.selected")
+        .forEach((el) => el.classList.remove("selected"));
+      if (card) card.classList.add("selected");
+
+      const slug = locateBtn.dataset.slug;
+      const lat = parseFloat(locateBtn.dataset.lat);
+      const lng = parseFloat(locateBtn.dataset.lng);
+
+      if (!map.hasLayer(placesGroup)) {
+        placesGroup.addTo(map);
+      }
+
+      const marker = markersBySlug.get(slug);
+      // Scroll smoothly so the entire map is visible right below the sticky header
+      const headerHeight = document.querySelector(".site-header")?.offsetHeight || 64;
+      const targetY = Math.max(0, mapEl.getBoundingClientRect().top + window.scrollY - headerHeight - 12);
+      window.scrollTo({ top: targetY, behavior: "smooth" });
+
+      if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+        if (marker) {
+          map.once("moveend", () => marker.openPopup());
+        }
+        map.flyTo([lat, lng], Math.max(map.getZoom(), 12), { duration: 0.65 });
+      } else if (marker) {
+        marker.openPopup();
+      }
+      return;
+    }
+
+    // 3. Handle removing a stop chip
     const removeBtn = event.target.closest(".route-stop-remove");
     if (removeBtn) {
       const slug = removeBtn.dataset.removeSlug;
@@ -398,61 +443,21 @@
       return;
     }
 
+    // 4. Clicking anywhere else on a card navigates straight to its detail page
     if (
       event.target.closest(".carousel-dot") ||
       event.target.closest(".card-tag") ||
-      event.target.closest(".img-retry-btn")
-    ) {
-      return;
-    }
-    const card = event.target.closest(".place-card");
-    if (!card) return;
-    if (event.metaKey || event.ctrlKey) return;
-
-    const slug = card.dataset.slug;
-    const alreadySelected = card.classList.contains("selected");
-
-    if (isTouchDevice && alreadySelected && slug) {
-      window.location.href = `/places/${encodeURIComponent(slug)}`;
-      return;
-    }
-
-    event.preventDefault();
-
-    document
-      .querySelectorAll(".place-card.selected")
-      .forEach((el) => el.classList.remove("selected"));
-    card.classList.add("selected");
-
-    const lat = parseFloat(card.dataset.lat);
-    const lng = parseFloat(card.dataset.lng);
-
-    if (!map.hasLayer(placesGroup)) {
-      placesGroup.addTo(map);
-    }
-
-    const marker = markersBySlug.get(slug);
-    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-      map.panTo([lat, lng], { animate: true, duration: 0.5 });
-    }
-    if (marker) {
-      marker.openPopup();
-    }
-
-    mapEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  });
-
-  document.addEventListener("dblclick", (event) => {
-    if (
-      event.target.closest(".carousel-dot") ||
-      event.target.closest(".card-tag") ||
-      event.target.closest(".route-toggle-btn") ||
-      event.target.closest(".img-retry-btn")
+      event.target.closest(".img-retry-btn") ||
+      event.target.closest("a")
     ) {
       return;
     }
     const card = event.target.closest(".place-card");
     if (!card || !card.dataset.slug) return;
+    if (event.metaKey || event.ctrlKey) {
+      window.open(`/places/${encodeURIComponent(card.dataset.slug)}`, "_blank");
+      return;
+    }
 
     window.location.href = `/places/${encodeURIComponent(card.dataset.slug)}`;
   });
