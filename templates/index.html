@@ -43,7 +43,8 @@
         </span>
       </div>
       <div class="route-builder-actions">
-        <button type="button" id="route-sort-ns" class="route-btn" disabled>Sort N → S</button>
+        <button type="button" id="route-share" class="route-btn" disabled>🔗 Share Route</button>
+        <button type="button" id="route-sort-ns" class="route-btn route-btn-ghost" disabled>Sort N → S</button>
         <button type="button" id="route-clear" class="route-btn route-btn-ghost" disabled>Clear</button>
       </div>
     </div>
@@ -89,6 +90,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/map.js?v=8"></script>
+<script src="/static/map.js?v=9"></script>
 <script src="/static/weather.js?v=4"></script>
 {% endblock %}

@@ -19,6 +19,7 @@
   const railwayLinesGroup = L.layerGroup().addTo(map);
   const stationsGroup = L.layerGroup().addTo(map);
   const markersBySlug = new Map();
+  const placesBySlug = new Map();
 
   const isMobile = window.matchMedia("(max-width: 640px)").matches;
 
@@ -112,6 +113,7 @@
       onEachFeature: (feature, marker) => {
         const p = feature.properties;
         const [lng, lat] = feature.geometry.coordinates;
+        placesBySlug.set(p.slug, { slug: p.slug, title: p.title, lat, lng });
         const elevBadge = p.elevation_m ? ` · ⛰️ ${p.elevation_m} m` : "";
         const imgHtml = p.image
           ? `<a href="${p.url}" class="popup-img-wrap"><img src="${p.image}" alt="${p.title.replace(/"/g, "&quot;")}" class="popup-img" loading="lazy" /></a>`
@@ -157,8 +159,23 @@
   const selectedStops = [];
   const stopsEl = document.getElementById("route-stops");
   const summaryEl = document.getElementById("route-summary");
+  const shareBtn = document.getElementById("route-share");
   const sortNsBtn = document.getElementById("route-sort-ns");
   const clearBtn = document.getElementById("route-clear");
+
+  function buildShareUrl() {
+    const url = new URL(window.location.href);
+    if (selectedStops.length > 0) {
+      url.searchParams.set("route", selectedStops.map((s) => s.slug).join(","));
+    } else {
+      url.searchParams.delete("route");
+    }
+    return url.toString();
+  }
+
+  function syncUrlWithRoute() {
+    window.history.replaceState({}, "", buildShareUrl());
+  }
 
   function formatDuration(minutes) {
     if (minutes < 60) return `${minutes} min`;
@@ -176,8 +193,9 @@
     });
   }
 
-  async function renderCustomRoute() {
+  async function renderCustomRoute(updateUrl = true) {
     syncRouteButtons();
+    if (updateUrl) syncUrlWithRoute();
     customRouteGroup.clearLayers();
 
     if (stopsEl) {
@@ -194,6 +212,7 @@
         .join("");
     }
 
+    if (shareBtn) shareBtn.disabled = selectedStops.length < 2;
     if (sortNsBtn) sortNsBtn.disabled = selectedStops.length < 2;
     if (clearBtn) clearBtn.disabled = selectedStops.length === 0;
 
@@ -272,6 +291,37 @@
     renderCustomRoute();
   }
 
+  if (shareBtn) {
+    shareBtn.addEventListener("click", async () => {
+      if (selectedStops.length < 2) return;
+      const shareUrl = buildShareUrl();
+      let copied = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shareUrl);
+          copied = true;
+        }
+      } catch (_err) {
+        copied = false;
+      }
+
+      if (!copied) {
+        const tmp = document.createElement("input");
+        tmp.value = shareUrl;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand("copy");
+        document.body.removeChild(tmp);
+      }
+
+      const prevText = shareBtn.textContent;
+      shareBtn.textContent = "✓ Link Copied!";
+      setTimeout(() => {
+        shareBtn.textContent = prevText;
+      }, 2000);
+    });
+  }
+
   if (sortNsBtn) {
     sortNsBtn.addEventListener("click", () => {
       selectedStops.sort((a, b) => b.lat - a.lat);
@@ -285,6 +335,45 @@
       renderCustomRoute();
     });
   }
+
+  // Auto-restore shared route from ?route=slug1,slug2,... on page load
+  (async function restoreRouteFromUrl() {
+    const routeParam = new URLSearchParams(window.location.search).get("route");
+    if (!routeParam) return;
+    const requestedSlugs = routeParam
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!requestedSlugs.length) return;
+
+    // If any shared slug isn't in the current filtered view, fetch all places to resolve it
+    if (requestedSlugs.some((slug) => !placesBySlug.has(slug))) {
+      try {
+        const allRes = await fetch("/api/places.geojson");
+        const allData = await allRes.json();
+        (allData.features || []).forEach((f) => {
+          const p = f.properties;
+          const [lng, lat] = f.geometry.coordinates;
+          if (!placesBySlug.has(p.slug)) {
+            placesBySlug.set(p.slug, { slug: p.slug, title: p.title, lat, lng });
+          }
+        });
+      } catch (err) {
+        console.warn("Could not resolve shared route stops:", err);
+      }
+    }
+
+    requestedSlugs.forEach((slug) => {
+      const stop = placesBySlug.get(slug);
+      if (stop && !selectedStops.some((s) => s.slug === slug)) {
+        selectedStops.push(stop);
+      }
+    });
+
+    if (selectedStops.length > 0) {
+      renderCustomRoute(false);
+    }
+  })();
 
   // Keep button active states synced after HTMX search/filter swaps
   document.body.addEventListener("htmx:afterSwap", () => {
