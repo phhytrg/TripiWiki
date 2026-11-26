@@ -106,6 +106,7 @@ pub struct PlaceCardsPartial<'a> {
 #[template(path = "railway.html")]
 pub struct RailwayTemplate<'a> {
     pub countries: &'a [CountryInfo],
+    pub active_country: String,
 }
 
 #[derive(Deserialize, Default)]
@@ -194,15 +195,27 @@ pub async fn places_geojson_handler(
     Json(store.places_geojson(params.country.as_deref(), params.region.as_deref()))
 }
 
-pub async fn railway_handler(State(state): State<Arc<AppState>>) -> Response {
+pub async fn railway_handler(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<SearchParams>,
+) -> Response {
     let store = state.store.read().await;
+    let active_country = params
+        .country
+        .clone()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "all".to_string());
     HtmlTemplate(RailwayTemplate {
         countries: &store.countries,
+        active_country,
     })
     .into_response()
 }
 
-pub async fn railway_geojson_handler(State(state): State<Arc<AppState>>) -> Json<Value> {
+pub async fn railway_geojson_handler(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<SearchParams>,
+) -> Json<Value> {
     let store = state.store.read().await;
-    Json(store.railway_geojson.clone())
+    Json(store.railway_geojson_for(params.country.as_deref()))
 }

@@ -861,6 +861,35 @@ a:hover {
   font-size: 0.9rem;
 }
 
+.rail-country-block + .rail-country-block {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.rail-legend-list {
+  list-style: none;
+  padding-left: 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rail-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 4px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 7px;
+}
+
+.rail-swatch-dashed {
+  height: 0;
+  border-top: 3px dashed #059669;
+  background: transparent;
+}
+
 /* Map layer toggle / legend */
 .leaflet-control-layers {
   border-radius: 8px !important;

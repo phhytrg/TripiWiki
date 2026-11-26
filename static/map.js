@@ -35,9 +35,21 @@
     )
     .addTo(map);
 
-  // Load real OSM railway lines & stations
+  // Speed-tier styling (scales cleanly to any number of countries without running out of colors)
+  function railStyleBySpeed(kmh) {
+    if (kmh >= 250) return { color: "#dc2626", weight: 4.5, dashArray: null, opacity: 0.92 };
+    if (kmh >= 140) return { color: "#2563eb", weight: 3.5, dashArray: null, opacity: 0.9 };
+    if (kmh >= 90) return { color: "#7c3aed", weight: 2.8, dashArray: null, opacity: 0.85 };
+    return { color: "#059669", weight: 2.5, dashArray: "6 4", opacity: 0.88 };
+  }
+
+  // Load real OSM railway lines & stations (scoped to active country if selected)
   try {
-    const railRes = await fetch("/api/railway.geojson");
+    const railUrl =
+      activeCountry && activeCountry !== "all"
+        ? `/api/railway.geojson?country=${encodeURIComponent(activeCountry)}`
+        : "/api/railway.geojson";
+    const railRes = await fetch(railUrl);
     const railData = await railRes.json();
     const features = railData.features || [];
 
@@ -47,16 +59,17 @@
     L.geoJSON(
       { type: "FeatureCollection", features: lineFeatures },
       {
-        style: (feature) => ({
-          color: feature.properties?.color || "#2563eb",
-          weight: 3,
-          opacity: 0.9,
-        }),
+        style: (feature) => railStyleBySpeed(feature.properties?.max_speed_kmh || 100),
         onEachFeature: (feature, layer) => {
           const p = feature.properties || {};
+          const baseStyle = railStyleBySpeed(p.max_speed_kmh || 100);
           if (p.name) {
-            layer.bindPopup(`<strong>🚆 ${p.name}</strong><br>${p.description || ""}`);
+            const spd = p.speed ? `<br><strong>⚡ Speed:</strong> ${p.speed}` : "";
+            layer.bindPopup(`<strong>🚆 ${p.name}</strong>${spd}<br>${p.description || ""}`);
+            layer.bindTooltip(`🚆 ${p.name}${p.speed ? ` · ${p.speed}` : ""}`, { sticky: true });
           }
+          layer.on("mouseover", () => layer.setStyle({ weight: baseStyle.weight + 2, opacity: 1 }));
+          layer.on("mouseout", () => layer.setStyle(baseStyle));
         },
       }
     ).addTo(railwayLinesGroup);
@@ -64,14 +77,16 @@
     L.geoJSON(
       { type: "FeatureCollection", features: stationFeatures },
       {
-        pointToLayer: (_feature, latlng) =>
-          L.circleMarker(latlng, {
+        pointToLayer: (feature, latlng) => {
+          const st = railStyleBySpeed(feature.properties?.max_speed_kmh || 100);
+          return L.circleMarker(latlng, {
             radius: 5,
-            fillColor: "#2563eb",
+            fillColor: st.color,
             color: "#ffffff",
             weight: 1.5,
             fillOpacity: 1,
-          }),
+          });
+        },
         onEachFeature: (feature, layer) => {
           const p = feature.properties || {};
           layer.bindPopup(`<strong>🚆 ${p.name}</strong><br>${p.transfer || ""}`);

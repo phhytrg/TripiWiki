@@ -1,108 +1,250 @@
 {% extends "base.html" %}
 
-{% block title %}Laos Railway &amp; Train Guide — TripiWiki{% endblock %}
+{% block title %}High-Speed &amp; Intercity Railways — TripiWiki{% endblock %}
 
 {% block content %}
 <article class="container place-detail">
   <div class="breadcrumb">
-    <a href="/">Home</a> / <span>Railway &amp; Transport</span>
+    <a href="/">Home</a> / <span>Railways &amp; High-Speed Trains</span>
   </div>
 
   <header class="place-header">
     <div class="card-meta">
-      <span class="region-pill">Nationwide Transport</span>
-      <span class="category-label">Railway Guide</span>
+      <span class="region-pill">Southeast Asia Rail Network</span>
+      <span class="category-label">High-Speed &amp; Cross-Border Rail</span>
     </div>
-    <h1>Laos–China Railway (LCR) &amp; Cross-Border Trains</h1>
+    <h1>Southeast Asia High-Speed &amp; Intercity Railways</h1>
     <p class="place-summary">
-      The fastest, most comfortable way to travel between Vientiane, Vang Vieng, Luang Prabang,
-      and the Chinese border—plus the overnight rail link to Bangkok via Khamsavath.
+      Real OpenStreetMap railway tracks, station guides, and cross-border rail connections across
+      <strong>Indonesia</strong>, <strong>Laos</strong>, <strong>Malaysia</strong>, and <strong>Thailand</strong>.
     </p>
 
-    <div class="place-hero-wrap">
-      <img src="/static/images/lcr-railway.jpg" alt="Laos-China Railway crossing northern Laos mountains" class="place-hero-img" />
+    <div class="region-pills railway-filters" style="margin-top: 16px;">
+      <a href="/railway?country=all" class="pill {% if active_country == "all" %}active{% endif %}">All Networks</a>
+      <a href="/railway?country=indonesia" class="pill {% if active_country == "indonesia" %}active{% endif %}">🇮🇩 Indonesia (Whoosh 350 km/h)</a>
+      <a href="/railway?country=laos" class="pill {% if active_country == "laos" %}active{% endif %}">🇱🇦 Laos (LCR 160 km/h)</a>
+      <a href="/railway?country=malaysia" class="pill {% if active_country == "malaysia" %}active{% endif %}">🇲🇾 Malaysia (KTM ETS &amp; Sabah)</a>
+      <a href="/railway?country=thailand" class="pill {% if active_country == "thailand" %}active{% endif %}">🇹🇭 Thailand (SRT &amp; HSR Corridor)</a>
     </div>
   </header>
 
-  <section class="map-section">
-    <h2>Interactive Railway &amp; Station Map</h2>
-    <div id="railway-map"></div>
+  <section class="map-section" style="margin-top: 20px;">
+    <div id="railway-map" data-active-country="{{ active_country }}"></div>
   </section>
 
   <div class="place-layout">
     <div class="prose">
-      <h2>1. Laos–China Railway (LCR)</h2>
-      <p>
-        Operating at up to <strong>160 km/h</strong>, the LCR cuts overland travel times in northern Laos
-        from 8+ hours on mountain buses down to 1–2 hours.
-      </p>
+      {% if active_country == "all" || active_country == "indonesia" %}
+      <section class="rail-country-block">
+        <h2>🇮🇩 Indonesia — Whoosh High-Speed Railway (350 km/h)</h2>
+        <p>
+          Southeast Asia's first true bullet train (<strong>KCIC Whoosh</strong>) links Jakarta and Bandung in
+          <strong>30–45 minutes</strong> at speeds up to <strong>350 km/h</strong>, slashing a 3–4 hour highway drive.
+        </p>
+        <div class="table-wrap">
+          <table class="wiki-table">
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>Duration</th>
+                <th>Top Speed</th>
+                <th>Transfer Tip</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Jakarta (Halim) ↔ Karawang</td>
+                <td>~15 min</td>
+                <td>350 km/h</td>
+                <td>Direct LRT Jabodebek link at Halim</td>
+              </tr>
+              <tr>
+                <td>Jakarta (Halim) ↔ Padalarang</td>
+                <td>~30 min</td>
+                <td>350 km/h</td>
+                <td>Free 18-min KA Feeder train into central Bandung</td>
+              </tr>
+              <tr>
+                <td>Jakarta (Halim) ↔ Tegalluar</td>
+                <td>~45 min</td>
+                <td>350 km/h</td>
+                <td>Shuttle buses to Summarecon &amp; East Bandung</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>Booking:</strong> Official <em>Whoosh</em> app, <em>Access by KAI</em>, or station kiosks.</p>
+      </section>
+      {% endif %}
 
-      <div class="table-wrap">
-      <table class="wiki-table">
-        <thead>
-          <tr>
-            <th>Route</th>
-            <th>EMU High-Speed</th>
-            <th>Ordinary Train</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Vientiane ↔ Vang Vieng</td>
-            <td>~50 min – 1 hr</td>
-            <td>~1 hr 20 min</td>
-            <td>Multiple daily departures</td>
-          </tr>
-          <tr>
-            <td>Vang Vieng ↔ Luang Prabang</td>
-            <td>~50 min</td>
-            <td>~1 hr 15 min</td>
-            <td>Scenic karst tunnels &amp; bridges</td>
-          </tr>
-          <tr>
-            <td>Vientiane ↔ Luang Prabang</td>
-            <td>~1 hr 50 min – 2 hr</td>
-            <td>~2 hr 40 min</td>
-            <td>Book 2–3 days ahead in high season</td>
-          </tr>
-          <tr>
-            <td>Vientiane ↔ Boten (Border)</td>
-            <td>~3 hr 30 min</td>
-            <td>~5 hr</td>
-            <td>International D887/D888 continues to Kunming</td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
+      {% if active_country == "all" || active_country == "laos" %}
+      <section class="rail-country-block">
+        <h2>🇱🇦 Laos — Laos–China Railway (LCR, 160 km/h)</h2>
+        <p>
+          Operating modern standard-gauge EMU trains up to <strong>160 km/h</strong>, the LCR connects Vientiane,
+          Vang Vieng, Luang Prabang, and the Chinese border (Boten/Kunming), with cross-border metre-gauge trains
+          at <strong>Khamsavath</strong> linking directly to Bangkok.
+        </p>
+        <div class="table-wrap">
+          <table class="wiki-table">
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>EMU Express</th>
+                <th>Top Speed</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Vientiane ↔ Vang Vieng</td>
+                <td>~50 min – 1 hr</td>
+                <td>160 km/h</td>
+                <td>Ordinary train: ~1h 20m (120 km/h)</td>
+              </tr>
+              <tr>
+                <td>Vang Vieng ↔ Luang Prabang</td>
+                <td>~50 min</td>
+                <td>160 km/h</td>
+                <td>Mountain tunnels &amp; Mekong bridges</td>
+              </tr>
+              <tr>
+                <td>Vientiane ↔ Luang Prabang</td>
+                <td>~1 hr 50 min – 2 hr</td>
+                <td>160 km/h</td>
+                <td>Book 2–3 days ahead in high season</td>
+              </tr>
+              <tr>
+                <td>Vientiane ↔ Boten (China Border)</td>
+                <td>~3 hr 30 min</td>
+                <td>160 km/h</td>
+                <td>International D887/D888 continues to Kunming</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>Booking &amp; Security:</strong> <em>LCR Ticket</em> app (opens 3 days ahead); arrive 45–60 min early for airport-style security.</p>
+      </section>
+      {% endif %}
 
-      <h2>2. Vientiane ↔ Bangkok (Khamsavath Station)</h2>
-      <p>
-        For travelers arriving from or heading to Thailand, the <strong>Thai–Laos metre-gauge railway</strong>
-        connects <strong>Vientiane (Khamsavath Station)</strong> across the Mekong Friendship Bridge to
-        <strong>Nong Khai</strong> and overnight sleeper trains to <strong>Bangkok (Krung Thep Aphiwat)</strong>.
-      </p>
+      {% if active_country == "all" || active_country == "malaysia" %}
+      <section class="rail-country-block">
+        <h2>🇲🇾 Malaysia — KTM ETS (160 km/h) &amp; Sabah State Railway</h2>
+        <p>
+          Peninsular Malaysia runs the fast, electrified <strong>KTM ETS</strong> (140–160 km/h) from the Thai border
+          at <strong>Padang Besar</strong> through Penang and Ipoh to <strong>KL Sentral</strong> (plus the 160 km/h
+          <strong>KLIA Ekspres</strong> airport train). In <strong>East Malaysia (Borneo)</strong>, the scenic
+          <strong>Sabah State Railway</strong> winds from Kota Kinabalu through the Padas River Gorge to Tenom.
+        </p>
+        <div class="table-wrap">
+          <table class="wiki-table">
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>Duration</th>
+                <th>Top Speed</th>
+                <th>Service &amp; Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>KL Sentral ↔ Ipoh</td>
+                <td>~2 hr 10 min</td>
+                <td>140–160 km/h</td>
+                <td>KTM ETS Platinum / Gold</td>
+              </tr>
+              <tr>
+                <td>KL Sentral ↔ Butterworth (Penang)</td>
+                <td>~4 hr</td>
+                <td>140–160 km/h</td>
+                <td>KTM ETS · 5-min walk to Penang ferry</td>
+              </tr>
+              <tr>
+                <td>KL Sentral ↔ Padang Besar (Thai Border)</td>
+                <td>~5 hr 15 min</td>
+                <td>140–160 km/h</td>
+                <td>KTM ETS · Direct transfer to Thailand</td>
+              </tr>
+              <tr>
+                <td>Tanjung Aru (KK) ↔ Beaufort ↔ Tenom</td>
+                <td>~3 hr 30 min</td>
+                <td>60–80 km/h</td>
+                <td>Sabah State Railway · Padas Gorge</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>Booking:</strong> Official <em>KTMB Mobile (KITS)</em> app for ETS; buy tickets at Tanjung Aru / Beaufort counters for Sabah State Railway.</p>
+      </section>
+      {% endif %}
 
-      <h2>3. Station Transfers &amp; Practical Tips</h2>
-      <ul>
-        <li><strong>Stations are outside town:</strong> Vientiane LCR (14 km), Luang Prabang (12 km), and Vang Vieng (4 km) all require a 10–30 minute tuk-tuk, shared minivan, or LOCA taxi.</li>
-        <li><strong>Booking tickets:</strong> Use the official <em>LCR Ticket</em> app (opens 3 days in advance, requires passport details), buy at the station, or book through local guesthouses / 12Go.</li>
-        <li><strong>Airport-style security:</strong> Arrive <strong>45–60 minutes</strong> early. No aerosols/sprays, pocket knives, or large power banks (&gt;20,000 mAh) in carry-on bags.</li>
-      </ul>
+      {% if active_country == "all" || active_country == "thailand" %}
+      <section class="rail-country-block">
+        <h2>🇹🇭 Thailand — SRT Intercity &amp; Thai–Lao HSR Corridor</h2>
+        <p>
+          <strong>Krung Thep Aphiwat Central Terminal (Bangkok)</strong> is Southeast Asia's central rail hub—linking
+          north to <strong>Nong Khai / Vientiane (Laos)</strong> (where Thailand's <strong>250 km/h Bangkok–Korat–Nong Khai
+          High-Speed Railway</strong> is under construction) and south to <strong>Hat Yai / Padang Besar (Malaysia)</strong>.
+        </p>
+        <div class="table-wrap">
+          <table class="wiki-table">
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>Duration</th>
+                <th>Top Speed</th>
+                <th>Cross-Border Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Bangkok ↔ Nakhon Ratchasima (Korat)</td>
+                <td>~4 hr (HSR: ~1 hr 15 min)</td>
+                <td>100 km/h (HSR: 250 km/h)</td>
+                <td>Phase 1 Thai–Chinese HSR corridor</td>
+              </tr>
+              <tr>
+                <td>Bangkok ↔ Nong Khai ↔ Vientiane</td>
+                <td>~10–11 hr overnight</td>
+                <td>90–120 km/h</td>
+                <td>Direct train to Vientiane Khamsavath (Laos)</td>
+              </tr>
+              <tr>
+                <td>Bangkok ↔ Hua Hin</td>
+                <td>~3 hr 30 min</td>
+                <td>100–120 km/h</td>
+                <td>Upgraded double-track Southern Line</td>
+              </tr>
+              <tr>
+                <td>Bangkok ↔ Padang Besar (Malaysia)</td>
+                <td>~15–16 hr overnight</td>
+                <td>90–120 km/h</td>
+                <td>Connects directly to Malaysia's KTM ETS to KL</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>Booking:</strong> Official <em>SRT D-Ticket</em> portal (`dticket.railway.co.th`) up to 180 days in advance.</p>
+      </section>
+      {% endif %}
     </div>
 
     <aside class="place-sidebar">
       <div class="tags-box">
-        <h4>Key Stations</h4>
-        <ul>
-          <li><strong>Vientiane LCR</strong> — Capital hub</li>
-          <li><strong>Khamsavath</strong> — Bangkok sleeper link</li>
-          <li><strong>Vang Vieng</strong> — Karst &amp; lagoons</li>
-          <li><strong>Luang Prabang</strong> — UNESCO Old Town</li>
-          <li><strong>Muang Xay</strong> — Bus link to Nong Khiaw</li>
-          <li><strong>Nateuy</strong> — Bus link to Luang Namtha</li>
-          <li><strong>Boten</strong> — China border / Kunming</li>
+        <h4>Speed Class Legend</h4>
+        <ul class="rail-legend-list">
+          <li><span class="rail-swatch" style="background:#dc2626; height:5px"></span><strong>High-Speed</strong> · 250+ km/h</li>
+          <li><span class="rail-swatch" style="background:#2563eb; height:4px"></span><strong>Express EMU</strong> · 140–249 km/h</li>
+          <li><span class="rail-swatch" style="background:#7c3aed; height:3px"></span><strong>Intercity</strong> · 90–139 km/h</li>
+          <li><span class="rail-swatch rail-swatch-dashed"></span><strong>Regional / Scenic</strong> · &lt; 90 km/h</li>
         </ul>
+      </div>
+
+      <div class="related-box">
+        <h4>Pan-Asian Rail Overland</h4>
+        <p style="font-size:0.86rem; color:var(--muted); margin:0;">
+          You can travel entirely by train from <strong>Kunming (China) → Boten → Luang Prabang → Vientiane (Laos) → Bangkok (Thailand) → Padang Besar → Kuala Lumpur → Singapore</strong>!
+        </p>
       </div>
     </aside>
   </div>
@@ -115,7 +257,8 @@
     const el = document.getElementById("railway-map");
     if (!el) return;
 
-    const map = L.map("railway-map").setView([19.4, 102.3], 7);
+    const activeCountry = el.dataset.activeCountry || "all";
+    const map = L.map("railway-map").setView([8.5, 105.0], 5);
     L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
       {
@@ -124,37 +267,52 @@
       }
     ).addTo(map);
 
-    const res = await fetch("/api/railway.geojson");
+    const url =
+      activeCountry && activeCountry !== "all"
+        ? `/api/railway.geojson?country=${encodeURIComponent(activeCountry)}`
+        : "/api/railway.geojson";
+    const res = await fetch(url);
     const data = await res.json();
 
+    function railStyleBySpeed(kmh) {
+      if (kmh >= 250) return { color: "#dc2626", weight: 4.5, dashArray: null, opacity: 0.92 };
+      if (kmh >= 140) return { color: "#2563eb", weight: 3.5, dashArray: null, opacity: 0.9 };
+      if (kmh >= 90) return { color: "#7c3aed", weight: 2.8, dashArray: null, opacity: 0.85 };
+      return { color: "#059669", weight: 2.5, dashArray: "6 4", opacity: 0.88 };
+    }
+
     const layer = L.geoJSON(data, {
-      style: (feature) => ({
-        color: feature.properties?.color || "#2563eb",
-        weight: 4,
-        opacity: 0.9,
-      }),
-      pointToLayer: (feature, latlng) =>
-        L.circleMarker(latlng, {
-          radius: 7,
-          fillColor: "#2563eb",
+      style: (feature) => railStyleBySpeed(feature.properties?.max_speed_kmh || 100),
+      pointToLayer: (feature, latlng) => {
+        const st = railStyleBySpeed(feature.properties?.max_speed_kmh || 100);
+        return L.circleMarker(latlng, {
+          radius: 6,
+          fillColor: st.color,
           color: "#ffffff",
           weight: 2,
           fillOpacity: 1,
-        }),
+        });
+      },
       onEachFeature: (feature, layerItem) => {
         const p = feature.properties || {};
         if (p.kind === "station") {
           layerItem.bindPopup(
-            `<strong>🚆 ${p.name}</strong><br><small>${p.line}</small><br>${p.transfer}`
+            `<strong>🚆 ${p.name}</strong><br><small>${p.line || ""}</small><br>${p.transfer || ""}`
           );
+          layerItem.bindTooltip(`🚆 ${p.name}`, { direction: "top" });
         } else if (p.name) {
-          layerItem.bindPopup(`<strong>${p.name}</strong><br>${p.description || ""}`);
+          const baseStyle = railStyleBySpeed(p.max_speed_kmh || 100);
+          const spd = p.speed ? `<br><strong>⚡ Speed:</strong> ${p.speed}` : "";
+          layerItem.bindPopup(`<strong>🚆 ${p.name}</strong>${spd}<br>${p.description || ""}`);
+          layerItem.bindTooltip(`🚆 ${p.name}${p.speed ? ` · ${p.speed}` : ""}`, { sticky: true });
+          layerItem.on("mouseover", () => layerItem.setStyle({ weight: baseStyle.weight + 2, opacity: 1 }));
+          layerItem.on("mouseout", () => layerItem.setStyle(baseStyle));
         }
       },
     }).addTo(map);
 
     if (data.features?.length) {
-      map.fitBounds(layer.getBounds(), { padding: [30, 30] });
+      map.fitBounds(layer.getBounds(), { padding: [30, 30], maxZoom: 10 });
     }
   })();
 </script>

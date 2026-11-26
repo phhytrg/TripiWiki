@@ -12,7 +12,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tokio::task::JoinSet;
 use tracing::{info, warn};
 
 use crate::content::{parse_markdown_place, Place, WikiStore};
@@ -20,6 +19,19 @@ use crate::handlers::AppState;
 
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
 const GDOC_MIME: &str = "application/vnd.google-apps.document";
+
+/// True only during local development (never in `--release` or on Render).
+fn is_local_debug() -> bool {
+    cfg!(debug_assertions) && std::env::var("RENDER").is_err()
+}
+
+fn mask_secret(val: &Option<String>) -> String {
+    match val {
+        Some(s) if s.len() > 8 => format!("{}...{} (len={})", &s[..4], &s[s.len() - 4..], s.len()),
+        Some(s) => format!("*** (len={})", s.len()),
+        None => "<unset>".to_string(),
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct DriveFile {
@@ -89,6 +101,15 @@ impl GDriveClient {
             .build()
             .expect("Failed to build HTTP client");
 
+        if is_local_debug() {
+            info!(
+                "[GDrive local debug] config: GDRIVE_FOLDER_ID={}, GDRIVE_PLACES_FOLDER_ID={}, GDRIVE_API_KEY={}",
+                folder_id.as_deref().unwrap_or("<unset>"),
+                places_folder_id.as_deref().unwrap_or("<unset>"),
+                mask_secret(&api_key),
+            );
+        }
+
         Self {
             http,
             folder_id,
@@ -142,13 +163,27 @@ impl GDriveClient {
                     req = req.query(&[("pageToken", token.as_str())]);
                 }
 
+                if is_local_debug() {
+                    info!(
+                        "[GDrive local debug] listing folder_id='{}' prefix='{}' page_token={:?}",
+                        folder_id, prefix, page_token
+                    );
+                }
+
                 let resp = req
                     .send()
                     .await
                     .map_err(|e| format!("Google Drive API request failed: {e}"))?;
 
-                if !resp.status().is_success() {
-                    let status = resp.status();
+                let status = resp.status();
+                if is_local_debug() {
+                    info!(
+                        "[GDrive local debug] folder '{}' -> HTTP {}",
+                        folder_id, status
+                    );
+                }
+
+                if !status.is_success() {
                     let body = resp.text().await.unwrap_or_default();
                     return Err(format!("Google Drive API error {status}: {body}"));
                 }
@@ -158,12 +193,27 @@ impl GDriveClient {
                     .await
                     .map_err(|e| format!("Failed to parse Google Drive response: {e}"))?;
 
+                if is_local_debug() {
+                    info!(
+                        "[GDrive local debug] folder '{}' returned {} items",
+                        folder_id,
+                        parsed.files.len()
+                    );
+                }
+
                 for f in parsed.files {
                     let rel_path = if prefix.is_empty() {
                         f.name.clone()
                     } else {
                         format!("{prefix}/{}", f.name)
                     };
+
+                    if is_local_debug() {
+                        info!(
+                            "[GDrive local debug]   item: path='{}' mime='{}' id='{}'",
+                            rel_path, f.mime_type, f.id
+                        );
+                    }
 
                     if f.mime_type == FOLDER_MIME {
                         queue.push_back((f.id, rel_path));
@@ -219,21 +269,34 @@ impl GDriveClient {
     }
 
     /// Recursively fetches and parses all Markdown (`.md`) place guides from `GDRIVE_PLACES_FOLDER_ID`
-    /// concurrently (also supports native Google Docs exported as `text/plain`).
+    /// with polite sequential pacing (avoids Google Drive's automated-query burst 403 block).
     pub async fn fetch_places(&self) -> Result<(Vec<Place>, Vec<String>), String> {
         let (Some(places_folder_id), Some(api_key)) = (&self.places_folder_id, &self.api_key) else {
             return Err("GDRIVE_PLACES_FOLDER_ID or GDRIVE_API_KEY not configured".to_string());
         };
 
         let (files, duplicates) = self.list_folder_recursive(places_folder_id, api_key).await?;
-        let mut set = JoinSet::new();
+        let mut places = Vec::new();
+        let mut downloaded = 0usize;
 
         for (rel_path, file) in files {
             let is_md = rel_path.to_lowercase().ends_with(".md");
             let is_gdoc = file.mime_type == GDOC_MIME;
             if !is_md && !is_gdoc {
+                if is_local_debug() {
+                    info!(
+                        "[GDrive local debug] skipping non-markdown file '{}' (mime='{}')",
+                        rel_path, file.mime_type
+                    );
+                }
                 continue;
             }
+
+            if downloaded > 0 {
+                // Polite pacing so Google Drive does not flag a burst of simultaneous downloads
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+            downloaded += 1;
 
             let url = if is_gdoc {
                 format!(
@@ -247,33 +310,36 @@ impl GDriveClient {
                 )
             };
 
-            let http = self.http.clone();
-            set.spawn(async move {
-                let res = http.get(&url).send().await;
-                (rel_path, res)
-            });
-        }
-
-        let mut places = Vec::new();
-        while let Some(joined) = set.join_next().await {
-            let Ok((rel_path, res)) = joined else {
-                continue;
-            };
-            match res {
+            match self.http.get(&url).send().await {
                 Ok(resp) if resp.status().is_success() => match resp.text().await {
                     Ok(raw) => {
                         let clean = raw.trim_start_matches('\u{feff}');
                         match parse_markdown_place(clean) {
-                            Ok(place) => places.push(place),
+                            Ok(place) => {
+                                if is_local_debug() {
+                                    info!(
+                                        "[GDrive local debug] parsed place '{}' -> slug='{}'",
+                                        rel_path, place.meta.slug
+                                    );
+                                }
+                                places.push(place);
+                            }
                             Err(err) => warn!("Skipping invalid Drive place '{rel_path}': {err}"),
                         }
                     }
                     Err(err) => warn!("Failed reading Drive place '{rel_path}': {err}"),
                 },
-                Ok(resp) => warn!(
-                    "Failed downloading Drive place '{rel_path}': HTTP {}",
-                    resp.status()
-                ),
+                Ok(resp) => {
+                    let status = resp.status();
+                    let err_body = if is_local_debug() {
+                        resp.text().await.unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
+                    warn!(
+                        "Failed downloading Drive place '{rel_path}': HTTP {status} {err_body}"
+                    );
+                }
                 Err(err) => warn!("Request failed for Drive place '{rel_path}': {err}"),
             }
         }

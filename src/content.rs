@@ -123,8 +123,38 @@ impl WikiStore {
     /// Load all markdown places and GeoJSON railway lines from the `content/` directory.
     pub fn load_from_dir(content_dir: &Path) -> Result<Self, String> {
         let places = load_places(&content_dir.join("places"))?;
-        let railway_geojson = load_single_geojson(&content_dir.join("railway/lcr-railway.geojson"))?;
+        let railway_geojson = load_geojson_dir(&content_dir.join("railway"))?;
         Ok(Self::from_places(places, railway_geojson))
+    }
+
+    /// Filter railway GeoJSON features by optional country slug ("all" or None returns all).
+    pub fn railway_geojson_for(&self, country: Option<&str>) -> Value {
+        let country_filter = country
+            .map(str::trim)
+            .filter(|s| !s.is_empty() && *s != "all");
+        let Some(c) = country_filter else {
+            return self.railway_geojson.clone();
+        };
+        let features: Vec<Value> = self
+            .railway_geojson
+            .get("features")
+            .and_then(|f| f.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter(|ft| {
+                        ft.get("properties")
+                            .and_then(|p| p.get("country"))
+                            .and_then(|v| v.as_str())
+                            == Some(c)
+                    })
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
+        json!({
+            "type": "FeatureCollection",
+            "features": features
+        })
     }
 
     /// Regions filtered to a specific country (or all regions if `country` is None/"all").
@@ -318,14 +348,29 @@ fn build_region_index(places: &[Place]) -> Vec<RegionInfo> {
     regions.into_iter().map(|(info, _)| info).collect()
 }
 
-fn load_single_geojson(path: &Path) -> Result<Value, String> {
-    if !path.exists() {
-        return Ok(json!({
-            "type": "FeatureCollection",
-            "features": []
-        }));
+fn load_geojson_dir(dir: &Path) -> Result<Value, String> {
+    let mut all_features: Vec<Value> = Vec::new();
+    if dir.exists() {
+        let mut paths: Vec<_> = fs::read_dir(dir)
+            .map_err(|e| format!("Failed to read {}: {e}", dir.display()))?
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("geojson"))
+            .collect();
+        paths.sort();
+
+        for path in paths {
+            let raw = fs::read_to_string(&path)
+                .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+            let val: Value = serde_json::from_str(&raw)
+                .map_err(|e| format!("Invalid GeoJSON in {}: {e}", path.display()))?;
+            if let Some(features) = val.get("features").and_then(|f| f.as_array()) {
+                all_features.extend(features.iter().cloned());
+            }
+        }
     }
-    let raw =
-        fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|e| format!("Invalid GeoJSON in {}: {e}", path.display()))
+    Ok(json!({
+        "type": "FeatureCollection",
+        "features": all_features
+    }))
 }
