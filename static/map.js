@@ -532,12 +532,11 @@
       return;
     }
 
-    // 4. Clicking anywhere else on a card navigates straight to its detail page
+    // 4. Single click on a card -> only highlight the card; double-click -> open detail page
     if (
       event.target.closest(".carousel-dot") ||
       event.target.closest(".card-tag") ||
-      event.target.closest(".img-retry-btn") ||
-      event.target.closest("a")
+      event.target.closest(".img-retry-btn")
     ) {
       return;
     }
@@ -547,6 +546,27 @@
       window.open(`/places/${encodeURIComponent(card.dataset.slug)}`, "_blank");
       return;
     }
+
+    event.preventDefault();
+
+    document
+      .querySelectorAll(".place-card.selected")
+      .forEach((el) => el.classList.remove("selected"));
+    card.classList.add("selected");
+  });
+
+  document.addEventListener("dblclick", (event) => {
+    if (
+      event.target.closest(".carousel-dot") ||
+      event.target.closest(".card-tag") ||
+      event.target.closest(".route-toggle-btn") ||
+      event.target.closest(".locate-map-btn") ||
+      event.target.closest(".img-retry-btn")
+    ) {
+      return;
+    }
+    const card = event.target.closest(".place-card");
+    if (!card || !card.dataset.slug) return;
 
     window.location.href = `/places/${encodeURIComponent(card.dataset.slug)}`;
   });
